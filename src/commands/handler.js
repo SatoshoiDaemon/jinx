@@ -1,6 +1,7 @@
 import { commandsByName } from './registry.js';
 import { editReplyV2, replyV2 } from '../modules/common/components-v2.js';
 import { handlePanelInteraction } from '../modules/panel/service.js';
+import { handleEconomyInteraction } from '../modules/economy/interactions.js';
 import { isAuthorizedGuild } from '../discord/guild.js';
 
 export async function handleInteraction(interaction, context) {
@@ -19,7 +20,8 @@ export async function handleInteraction(interaction, context) {
     return;
   }
 
-  const handled = await handlePanelInteraction(interaction, context);
+  const handled = await handlePanelInteraction(interaction, context)
+    || await handleEconomyInteraction(interaction, context);
   if (
     !handled
     && (interaction.isButton() || interaction.isRoleSelectMenu()

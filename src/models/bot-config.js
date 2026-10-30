@@ -1,6 +1,7 @@
 import {
   BOT_CONFIG_COLLECTION,
   BOT_CONFIG_ID,
+  DEFAULT_ECONOMY_SETTINGS,
   DEFAULT_LEVEL_SETTINGS,
   DEFAULT_WELCOME_SETTINGS,
 } from '../config/defaults.js';
@@ -27,6 +28,7 @@ export async function ensureBotConfig(database) {
       $setOnInsert: {
         modules: {
           levels: { ...DEFAULT_LEVEL_SETTINGS },
+          economy: DEFAULT_ECONOMY_SETTINGS,
           welcome: DEFAULT_WELCOME_SETTINGS,
         },
         createdAt: new Date(),

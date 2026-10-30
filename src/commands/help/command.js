@@ -10,7 +10,12 @@ const HELP_TEXT = [
   '`/nivel adicionar` e `/nivel remover` — ajustam níveis (Gerenciar servidor).',
   '`/xp adicionar` e `/xp remover` — ajustam XP (Gerenciar servidor).',
   '`/perfil [membro]` — mostra dados básicos e o banner público disponível.',
-  '`/painel` — abre as configurações dos sistemas do Jinx (Gerenciar servidor).',
+  '`/carteira [membro]`, `/daily`, `/trabalhar` e `/crime` — consultam ou movimentam Yen virtual.',
+  '`/pagar membro valor` — transfere Yen para outro membro.',
+  '`/aposta blackjack|roleta|slots|moeda|dados` — jogos com Yen fictício, sem dinheiro real.',
+  '`/ranking economia|nivel` — exibe os rankings de saldo e nível.',
+  '`/adicionar yen` e `/remover yen` — ajustes administrativos (Gerenciar servidor).',
+  '`/painel` — configura níveis, economia, boas-vindas e calls (Gerenciar servidor).',
   '`/botinfo`, `/uptime` e `/ping` — informações do bot e latência.',
 ].join('\n');
 

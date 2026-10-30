@@ -10,11 +10,12 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { DEFAULT_WELCOME_SETTINGS } from '../../config/defaults.js';
+import { DEFAULT_ECONOMY_SETTINGS, DEFAULT_WELCOME_SETTINGS } from '../../config/defaults.js';
 import { WELCOME_PLACEHOLDERS } from '../welcome/placeholders.js';
+import { formatYen } from '../economy/service.js';
 
 export const PANEL_CATEGORIES = Object.freeze([
-  { id: 'levels', label: 'Níveis e economia', description: 'XP, progressão e boosts' },
+  { id: 'levels', label: 'Níveis e economia', description: 'XP, boosts, Yen e apostas' },
   { id: 'voice_calls', label: 'Calls temporárias', description: 'Calls criadas ao entrar em um canal' },
   { id: 'tickets', label: 'Tickets e atendimento', description: 'Indisponível no momento' },
   { id: 'welcome', label: 'Boas-vindas', description: 'Cargos iniciais e mensagens de entrada' },
@@ -29,6 +30,20 @@ const WELCOME_SECTIONS = Object.freeze([
   { id: 'dm', label: 'Mensagem privada', description: 'DM enviada ao novo membro' },
   { id: 'public', label: 'Mensagem pública', description: 'Mensagem temporária em um canal' },
   { id: 'placeholders', label: 'Placeholders', description: 'Variáveis disponíveis nas mensagens' },
+]);
+
+const LEVEL_ECONOMY_SECTIONS = Object.freeze([
+  { id: 'levels', label: 'Níveis', description: 'XP, progressão e boosts' },
+  { id: 'economy', label: 'Economia', description: 'Yen, recompensas e apostas' },
+]);
+
+const ECONOMY_PAGES = Object.freeze([
+  { id: 'overview', label: 'Visão geral', description: 'Resumo da economia' },
+  { id: 'daily', label: 'Daily', description: 'Recompensa e sequência diária' },
+  { id: 'work', label: 'Trabalho', description: 'Recompensas e cooldown' },
+  { id: 'crime', label: 'Crime fictício', description: 'Chance, recompensa e multa' },
+  { id: 'transfers', label: 'Transferências', description: 'Limites de pagamentos' },
+  { id: 'games', label: 'Apostas', description: 'Limites, prazos e jogos' },
 ]);
 
 function enabledText(enabled) {
@@ -122,19 +137,109 @@ function renderWelcomeContent(settings, guild, section) {
   ].join('\n');
 }
 
-export function renderPanelContent(category, settings, guild, welcomeSection = 'overview') {
+function renderEconomyContent(settings, page) {
+  if (page === 'daily') {
+    return [
+      '## Economia — recompensa diária',
+      '',
+      `Saldo inicial: **${formatYen(settings.startingBalance)}**`,
+      `Daily: **${formatYen(settings.daily.reward)}** a cada **${settings.daily.cooldownHours} h**`,
+      `Sequência: **${settings.daily.streak.enabled ? 'ativada' : 'desativada'}**`,
+      `Bônus progressivo: **${formatYen(settings.daily.streak.bonusPerDay)} por dia**, até **${formatYen(settings.daily.streak.maxBonus)}** ou ${settings.daily.streak.maxDays} dias.`,
+      '',
+      'O bônus cresce por dias consecutivos e para no limite configurado.',
+    ].join('\n');
+  }
+  if (page === 'work') {
+    return [
+      '## Economia — trabalho',
+      '',
+      `Recompensa aleatória: **${formatYen(settings.work.minReward)}–${formatYen(settings.work.maxReward)}**`,
+      `Cooldown: **${settings.work.cooldownSeconds} s**`,
+      '',
+      'As mensagens de trabalho variam para evitar repetição frequente.',
+    ].join('\n');
+  }
+  if (page === 'crime') {
+    return [
+      '## Economia — crime fictício',
+      '',
+      `Chance de sucesso: **${settings.crime.successChancePercent}%**`,
+      `Recompensa: **${formatYen(settings.crime.minReward)}–${formatYen(settings.crime.maxReward)}**`,
+      `Multa em caso de falha: **${formatYen(settings.crime.minFine)}–${formatYen(settings.crime.maxFine)}**, limitada ao saldo disponível.`,
+      `Cooldown: **${settings.crime.cooldownSeconds} s**`,
+      '',
+      'Toda a atividade é fictícia e usa somente Yen virtual.',
+    ].join('\n');
+  }
+  if (page === 'transfers') {
+    return [
+      '## Economia — transferências',
+      '',
+      `Valor mínimo: **${formatYen(settings.transfer.minAmount)}**`,
+      `Valor máximo por transferência: **${formatYen(settings.transfer.maxAmount)}**`,
+      '',
+      'As carteiras são debitadas e creditadas com proteção contra saldo insuficiente e operações duplicadas.',
+    ].join('\n');
+  }
+  if (page === 'games') {
+    const payoutRows = Object.entries(settings.games.slots.payouts)
+      .filter(([, multiplier]) => multiplier > 0)
+      .map(([combination, multiplier]) => `• ${combination}: retorno bruto **${multiplier}×**`);
+    return [
+      '## Economia — apostas',
+      '',
+      `Aposta mínima/máxima: **${formatYen(settings.games.minBet)} / ${formatYen(settings.games.maxBet)}**`,
+      `Pagamento máximo: **${formatYen(settings.games.maxPayout)}**`,
+      `Partidas interativas expiram após **${settings.games.timeoutSeconds} s**; a aposta é devolvida.`,
+      `Jogos ativos: ${['blackjack', 'roulette', 'slots', 'coin', 'dice'].filter((game) => settings.games[game].enabled).map((game) => ({ blackjack: 'blackjack', roulette: 'roleta', slots: 'slots', coin: 'cara ou coroa', dice: 'dados' })[game]).join(', ') || 'nenhum'}.`,
+      '',
+      '**Caça-níquel — retorno bruto**',
+      ...payoutRows,
+      '',
+      'Símbolos por posição: 🍒 40%, 🍋 25%, 🍇 15%, 🔔 10%, ⭐ 7%, 💎 3%.',
+      'Roleta europeia: número 35:1, cor/paridade/faixa 1:1 e dúzia 2:1 (lucro; a aposta também retorna).',
+    ].join('\n');
+  }
+  return [
+    '## Níveis e Economia — economia',
+    '',
+    `Sistema: **${settings.enabled ? 'ativado' : 'desativado'}**`,
+    `Saldo inicial: **${formatYen(settings.startingBalance)}**`,
+    `Daily: **${formatYen(settings.daily.reward)}** a cada ${settings.daily.cooldownHours} h; sequência ${settings.daily.streak.enabled ? 'ativa' : 'inativa'}.`,
+    `Trabalho: **${formatYen(settings.work.minReward)}–${formatYen(settings.work.maxReward)}** a cada ${settings.work.cooldownSeconds} s.`,
+    `Crime fictício: **${settings.crime.successChancePercent}%** de sucesso; recompensa ${formatYen(settings.crime.minReward)}–${formatYen(settings.crime.maxReward)}.`,
+    `Transferências: **${formatYen(settings.transfer.minAmount)}–${formatYen(settings.transfer.maxAmount)}**.`,
+    `Apostas: **${formatYen(settings.games.minBet)}–${formatYen(settings.games.maxBet)}**, limite de retorno ${formatYen(settings.games.maxPayout)}.`,
+    '',
+    'Use os controles para configurar recompensas, cooldowns, limites e jogos. Yen é moeda fictícia, sem conversão em dinheiro real.',
+  ].join('\n');
+}
+
+export function renderPanelContent(
+  category,
+  settings,
+  guild,
+  welcomeSection = 'overview',
+  economySettings,
+  levelsSection = 'levels',
+  economyPage = 'overview',
+) {
   if (category === 'home') {
     return [
       '## Painel de administração — Jinx',
       '',
       'Escolha uma categoria no menu para abrir suas opções.',
       '',
-      '**Disponível:** níveis e boosts de XP, boas-vindas, calls temporárias e comandos utilitários.',
-      '**Em preparação:** economia, tickets, sugestões e destaque de perfis.',
+      '**Disponível:** níveis e boosts de XP, economia em Yen, boas-vindas, calls temporárias e comandos utilitários.',
+      '**Em preparação:** tickets, sugestões e destaque de perfis.',
     ].join('\n');
   }
 
   if (category === 'levels') {
+    if (levelsSection === 'economy') {
+      return renderEconomyContent(economySettings, economyPage);
+    }
     return [
       '## Níveis e economia',
       '',
@@ -145,7 +250,7 @@ export function renderPanelContent(category, settings, guild, welcomeSection = '
       `Boost máximo por cargo/canal: **${settings.maxBoostMultiplier}×**`,
       `Boosts ativos: **${Object.keys(settings.roleBoosts ?? {}).length} cargos** e **${Object.keys(settings.channelBoosts ?? {}).length} canais**.`,
       '',
-      'Use os controles abaixo para ajustar níveis e boosts. A economia ainda não está disponível.',
+      'Use o seletor de seção para alternar entre níveis e economia. As configurações de XP permanecem independentes.',
     ].join('\n');
   }
 
@@ -280,7 +385,82 @@ function welcomeRows(section, settings) {
   return rows;
 }
 
-export function buildPanelRows(category = 'home', welcomeSection = 'overview', welcomeSettings) {
+function levelsEconomySectionRow(section) {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('panel:levels:section')
+    .setPlaceholder('Escolha entre níveis e economia')
+    .setMinValues(1)
+    .setMaxValues(1)
+    .addOptions(LEVEL_ECONOMY_SECTIONS.map((item) => ({
+      label: item.label,
+      value: item.id,
+      description: item.description,
+      default: item.id === section,
+    })));
+  return new ActionRowBuilder().addComponents(select);
+}
+
+function economyPageRow(page) {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('panel:economy:page')
+    .setPlaceholder('Escolha uma configuração de economia')
+    .setMinValues(1)
+    .setMaxValues(1)
+    .addOptions(ECONOMY_PAGES.map((item) => ({
+      label: item.label,
+      value: item.id,
+      description: item.description,
+      default: item.id === page,
+    })));
+  return new ActionRowBuilder().addComponents(select);
+}
+
+function economyRows(page, settings) {
+  const rows = [levelsEconomySectionRow('economy'), economyPageRow(page)];
+  if (page === 'overview') {
+    rows.push(new ActionRowBuilder().addComponents(
+      button('panel:economy:enabled', settings.enabled ? 'Desativar economia' : 'Ativar economia', ButtonStyle.Primary),
+      button('panel:economy:edit:starting', 'Editar saldo inicial'),
+    ));
+  } else if (page === 'daily') {
+    rows.push(new ActionRowBuilder().addComponents(
+      button('panel:economy:streak', settings.daily.streak.enabled ? 'Desativar sequência' : 'Ativar sequência', ButtonStyle.Primary),
+      button('panel:economy:edit:daily', 'Editar daily e sequência'),
+    ));
+  } else if (page === 'work') {
+    rows.push(new ActionRowBuilder().addComponents(button('panel:economy:edit:work', 'Editar trabalho', ButtonStyle.Primary)));
+  } else if (page === 'crime') {
+    rows.push(new ActionRowBuilder().addComponents(
+      button('panel:economy:edit:crime-rewards', 'Chance e recompensas', ButtonStyle.Primary),
+      button('panel:economy:edit:crime-fines', 'Multas e cooldown'),
+    ));
+  } else if (page === 'transfers') {
+    rows.push(new ActionRowBuilder().addComponents(button('panel:economy:edit:transfers', 'Editar limites', ButtonStyle.Primary)));
+  } else if (page === 'games') {
+    rows.push(new ActionRowBuilder().addComponents(
+      button('panel:economy:game:blackjack', 'Blackjack', settings.games.blackjack.enabled ? ButtonStyle.Success : ButtonStyle.Secondary),
+      button('panel:economy:game:roulette', 'Roleta', settings.games.roulette.enabled ? ButtonStyle.Success : ButtonStyle.Secondary),
+      button('panel:economy:game:slots', 'Slots', settings.games.slots.enabled ? ButtonStyle.Success : ButtonStyle.Secondary),
+      button('panel:economy:game:coin', 'Cara ou coroa', settings.games.coin.enabled ? ButtonStyle.Success : ButtonStyle.Secondary),
+      button('panel:economy:game:dice', 'Dados', settings.games.dice.enabled ? ButtonStyle.Success : ButtonStyle.Secondary),
+    ));
+    rows.push(new ActionRowBuilder().addComponents(
+      button('panel:economy:edit:game-limits', 'Limites e expiração', ButtonStyle.Primary),
+      button('panel:economy:edit:slot-payouts', 'Pagamentos de slots'),
+      button('panel:economy:edit:slot-diamond', 'Pagamento do 💎'),
+    ));
+  }
+  return rows;
+}
+
+export function buildPanelRows(
+  category = 'home',
+  welcomeSection = 'overview',
+  welcomeSettings,
+  levelsSection = 'levels',
+  economyPage = 'overview',
+  economySettings = DEFAULT_ECONOMY_SETTINGS,
+) {
   const rows = [categorySelectRow()];
 
   if (category === 'welcome') {
@@ -318,6 +498,17 @@ export function buildPanelRows(category = 'home', welcomeSection = 'overview', w
     return rows;
   }
 
+  const section = LEVEL_ECONOMY_SECTIONS.some((item) => item.id === levelsSection)
+    ? levelsSection
+    : 'levels';
+  if (section === 'economy') {
+    const selectedPage = ECONOMY_PAGES.some((item) => item.id === economyPage)
+      ? economyPage
+      : 'overview';
+    return [...rows, ...economyRows(selectedPage, economySettings)];
+  }
+  rows.push(levelsEconomySectionRow('levels'));
+
   const settingsButton = button('panel:settings', 'Ajustar níveis e XP', ButtonStyle.Primary);
   const boostLimitButton = button('panel:boost-limit', 'Limite de boosts');
   const roleSelect = new RoleSelectMenuBuilder()
@@ -353,6 +544,98 @@ function numberInput(customId, label, value, { required = true, placeholder = St
     input.setValue(String(value));
   }
   return new ActionRowBuilder().addComponents(input);
+}
+
+const ECONOMY_FIELD_LABELS = Object.freeze({
+  startingBalance: 'Saldo inicial',
+  dailyReward: 'Recompensa diária',
+  dailyCooldownHours: 'Cooldown daily em horas',
+  streakBonusPerDay: 'Bônus por dia consecutivo',
+  streakMaxBonus: 'Bônus máximo da sequência',
+  streakMaxDays: 'Dias da sequência',
+  workMinReward: 'Recompensa mínima',
+  workMaxReward: 'Recompensa máxima',
+  workCooldownSeconds: 'Cooldown em segundos',
+  crimeChance: 'Chance de sucesso (%)',
+  crimeMinReward: 'Recompensa mínima',
+  crimeMaxReward: 'Recompensa máxima',
+  crimeMinFine: 'Multa mínima',
+  crimeMaxFine: 'Multa máxima',
+  crimeCooldownSeconds: 'Cooldown em segundos',
+  transferMinAmount: 'Valor mínimo',
+  transferMaxAmount: 'Valor máximo',
+  gameMinBet: 'Aposta mínima',
+  gameMaxBet: 'Aposta máxima',
+  gameMaxPayout: 'Pagamento máximo',
+  gameTimeoutSeconds: 'Expiração em segundos',
+  slotsCherries: 'Retorno bruto 🍒🍒🍒',
+  slotsLemons: 'Retorno bruto 🍋🍋🍋',
+  slotsGrapes: 'Retorno bruto 🍇🍇🍇',
+  slotsBells: 'Retorno bruto 🔔🔔🔔',
+  slotsStars: 'Retorno bruto ⭐⭐⭐',
+  slotsDiamond: 'Retorno bruto 💎💎💎',
+});
+
+export function buildEconomyModal(type, settings) {
+  const values = {
+    startingBalance: settings.startingBalance,
+    dailyReward: settings.daily.reward,
+    dailyCooldownHours: settings.daily.cooldownHours,
+    streakBonusPerDay: settings.daily.streak.bonusPerDay,
+    streakMaxBonus: settings.daily.streak.maxBonus,
+    streakMaxDays: settings.daily.streak.maxDays,
+    workMinReward: settings.work.minReward,
+    workMaxReward: settings.work.maxReward,
+    workCooldownSeconds: settings.work.cooldownSeconds,
+    crimeChance: settings.crime.successChancePercent,
+    crimeMinReward: settings.crime.minReward,
+    crimeMaxReward: settings.crime.maxReward,
+    crimeMinFine: settings.crime.minFine,
+    crimeMaxFine: settings.crime.maxFine,
+    crimeCooldownSeconds: settings.crime.cooldownSeconds,
+    transferMinAmount: settings.transfer.minAmount,
+    transferMaxAmount: settings.transfer.maxAmount,
+    gameMinBet: settings.games.minBet,
+    gameMaxBet: settings.games.maxBet,
+    gameMaxPayout: settings.games.maxPayout,
+    gameTimeoutSeconds: settings.games.timeoutSeconds,
+    slotsCherries: settings.games.slots.payouts['🍒🍒🍒'],
+    slotsLemons: settings.games.slots.payouts['🍋🍋🍋'],
+    slotsGrapes: settings.games.slots.payouts['🍇🍇🍇'],
+    slotsBells: settings.games.slots.payouts['🔔🔔🔔'],
+    slotsStars: settings.games.slots.payouts['⭐⭐⭐'],
+    slotsDiamond: settings.games.slots.payouts['💎💎💎'],
+  };
+  const groups = {
+    starting: ['startingBalance'],
+    daily: ['dailyReward', 'dailyCooldownHours', 'streakBonusPerDay', 'streakMaxBonus', 'streakMaxDays'],
+    work: ['workMinReward', 'workMaxReward', 'workCooldownSeconds'],
+    'crime-rewards': ['crimeChance', 'crimeMinReward', 'crimeMaxReward'],
+    'crime-fines': ['crimeMinFine', 'crimeMaxFine', 'crimeCooldownSeconds'],
+    transfers: ['transferMinAmount', 'transferMaxAmount'],
+    'game-limits': ['gameMinBet', 'gameMaxBet', 'gameMaxPayout', 'gameTimeoutSeconds'],
+    'slot-payouts': ['slotsCherries', 'slotsLemons', 'slotsGrapes', 'slotsBells', 'slotsStars'],
+    'slot-diamond': ['slotsDiamond'],
+  };
+  const fields = groups[type];
+  if (!fields) {
+    throw new Error('ECONOMY_MODAL_UNKNOWN');
+  }
+  const titles = {
+    starting: 'Saldo inicial',
+    daily: 'Daily e sequência',
+    work: 'Recompensas de trabalho',
+    'crime-rewards': 'Chance e recompensas',
+    'crime-fines': 'Multas e cooldown',
+    transfers: 'Limites de transferência',
+    'game-limits': 'Limites das apostas',
+    'slot-payouts': 'Pagamentos dos slots',
+    'slot-diamond': 'Pagamento do diamante',
+  };
+  return new ModalBuilder()
+    .setCustomId(`panel:economy:modal:${type}`)
+    .setTitle(titles[type])
+    .addComponents(...fields.map((id) => numberInput(id, ECONOMY_FIELD_LABELS[id], values[id])));
 }
 
 export function buildSettingsModal() {

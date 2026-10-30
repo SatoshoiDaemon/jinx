@@ -1,6 +1,7 @@
 import {
   BOT_CONFIG_COLLECTION,
   BOT_CONFIG_ID,
+  DEFAULT_ECONOMY_SETTINGS,
   DEFAULT_LEVEL_SETTINGS,
   DEFAULT_WELCOME_SETTINGS,
 } from '../config/defaults.js';
@@ -35,6 +36,7 @@ async function migrateLegacyConfig(database, guildId) {
       $setOnInsert: {
         modules: {
           levels: readLegacyLevelSettings(legacyDocument),
+          economy: DEFAULT_ECONOMY_SETTINGS,
           welcome: DEFAULT_WELCOME_SETTINGS,
         },
         createdAt,
@@ -129,4 +131,8 @@ async function migrateLegacyMemberXp(database, guildId) {
 export async function initializeDatabase(database, guildId) {
   await migrateLegacyConfig(database, guildId);
   await migrateLegacyMemberXp(database, guildId);
+  await database.collection(BOT_CONFIG_COLLECTION).updateOne(
+    { _id: BOT_CONFIG_ID, 'modules.economy': { $exists: false } },
+    { $set: { 'modules.economy': DEFAULT_ECONOMY_SETTINGS } },
+  );
 }

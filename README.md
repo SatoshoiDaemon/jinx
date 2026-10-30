@@ -31,7 +31,50 @@ Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de 
 - `/nivel adicionar` e `/nivel remover`: ajuste administrativo de níveis.
 - `/xp adicionar` e `/xp remover`: ajuste administrativo de XP.
 - `/perfil [membro]`: exibe informações básicas do perfil e o banner público, quando disponível.
-- `/painel`: abre o centro administrativo com controles de níveis e XP, **Boas-vindas** e **Calls temporárias**. Em Calls temporárias, escolha um canal de voz base e a categoria para as calls. Ao entrar no canal base, a pessoa recebe uma call aberta, sem limite de participantes, com seu nome e é movida para ela. A call é apagada quando fica vazia; canal base e categoria podem ser removidos no painel.
+- `/painel`: abre o centro administrativo com níveis e economia, **Boas-vindas** e **Calls temporárias**. Em Calls temporárias, escolha um canal de voz base e a categoria para as calls. Ao entrar no canal base, a pessoa recebe uma call aberta, sem limite de participantes, com seu nome e é movida para ela. A call é apagada quando fica vazia; canal base e categoria podem ser removidos no painel.
+
+## Economia virtual em Yen
+
+A moeda do Jinx é Yen fictício (`¥`). Não há dinheiro real, criptomoedas, pagamentos, prêmios externos nem conversão de Yen para valores reais. Todas as apostas são simuladas e resolvidas no servidor com aleatoriedade criptográfica.
+
+### Comandos
+
+- `/carteira [membro]`: consulta sua carteira ou a de um membro, com avatar, identificação, saldo, posição econômica, valores recebidos/gastos, estatísticas de apostas e as quatro movimentações mais recentes. A resposta é privada.
+- `/daily`: recebe a recompensa diária. O padrão é `¥100` a cada 24 horas. O cooldown é contado desde o resgate; respostas simultâneas não duplicam o pagamento.
+- `/trabalhar`: recebe uma recompensa aleatória de `¥50` a `¥150`; padrão de cooldown de uma hora.
+- `/crime`: ação de história fictícia, com 40% de chance de sucesso por padrão. O sucesso paga de `¥100` a `¥400`; a falha cobra de `¥25` a `¥200`, limitada ao saldo disponível. O cooldown padrão é de duas horas, e a chance e os valores são mostrados na resposta.
+- `/pagar membro valor`: transfere Yen para outro membro. O padrão aceita de `¥1` a `¥100.000` por transferência. Não aceita o próprio usuário nem bots.
+- `/adicionar yen membro quantidade` e `/remover yen membro quantidade`: ajustam a carteira de um membro. Exigem **Gerenciar servidor**; informam o administrador no histórico e respondem em privado. Remoções nunca deixam o saldo negativo.
+- `/aposta blackjack aposta`: joga contra o dealer; omitir `aposta` retoma uma partida ativa. O dealer compra até 17 e para em soft 17. Blackjack natural paga 3:2, vitória comum paga 1:1 e empate devolve a aposta. Aposta precisa ser par para que o pagamento natural seja Yen inteiro. Não há split, insurance, surrender ou double down.
+- `/aposta roleta aposta tipo [numero]`: roleta europeia de 0 a 36. Número exato paga 35:1 de lucro (36× de retorno bruto); vermelho/preto, par/ímpar e baixo/alto pagam 1:1 (2× bruto); dúzia paga 2:1 (3× bruto). O zero é verde e não ganha apostas de cor, paridade ou faixa. Um número específico tem chance de 1 em 37; cor, paridade e faixa cobrem 18 em 37; cada dúzia cobre 12 em 37.
+- `/aposta slots aposta`: caça-níquel de três posições. Cada posição sorteia independentemente: 🍒 40%, 🍋 25%, 🍇 15%, 🔔 10%, ⭐ 7% e 💎 3%. Apenas trincas iguais pagam; o número mostrado é o retorno bruto, incluindo a aposta:
+
+  | Trinca | Chance por jogada | Retorno bruto padrão |
+  | --- | ---: | ---: |
+  | 🍒🍒🍒 | 6,4% | 3× |
+  | 🍋🍋🍋 | 1,5625% | 4× |
+  | 🍇🍇🍇 | 0,3375% | 6× |
+  | 🔔🔔🔔 | 0,1% | 10× |
+  | ⭐⭐⭐ | 0,0343% | 20× |
+  | 💎💎💎 | 0,0027% | 50× |
+
+- `/aposta moeda aposta lado`: escolhe cara ou coroa. Acerto paga 1:1 de lucro (2× de retorno bruto); erro perde a aposta.
+- `/aposta dados aposta`: compara um d20 do jogador com um d20 da casa. Maior resultado vence e paga 1:1 de lucro (2× bruto); empate devolve a aposta; menor resultado perde.
+- `/ranking economia` e `/ranking nivel`: mostram os 10 primeiros; a modalidade de economia ordena pelo saldo, e a de nível ordena por XP total. Sua posição aparece fora do Top 10 quando aplicável. Membros que saíram são identificados como tal.
+
+As apostas padrão aceitam de `¥10` a `¥10.000`, com retorno máximo de `¥1.000.000`. Valores e jogos são configuráveis. Partidas de blackjack abandonadas expiram após cinco minutos e devolvem a aposta; o prazo pode ser alterado entre 60 e 3.600 segundos. Resultados e pagamentos pendentes ficam registrados no MongoDB para recuperação após reinicialização. Botões de blackjack só avançam a partida e versão atuais.
+
+### Configurações e integridade
+
+Pessoas com **Gerenciar servidor** podem ajustar tudo em `/painel` → **Níveis e economia** → **Economia**. O painel separa visão geral, daily, trabalho, crime, transferências e apostas. É possível ativar/desativar a economia e cada jogo, definir saldo inicial para novas carteiras, recompensas e cooldowns, bônus e limites da sequência diária, chance/multas do crime, limites de transferências/apostas, prazo das partidas, limite de retorno e multiplicadores de cada trinca dos slots. Níveis e XP continuam na seção independente **Níveis**.
+
+O sistema valida inteiros seguros, limites, probabilidades fixas e pagamentos dos slots antes de salvar alterações. Novas carteiras começam com `¥100`; editar o saldo inicial não altera carteiras existentes. Os padrões diários são `¥100` por 24 horas, sequência desativada, bônus progressivo de `¥25` por dia até `¥250` e 10 dias considerados (ao ativar, o bônus começa no primeiro dia da sequência). A sequência conta um resgate como consecutivo quando feito até 24 horas após o momento em que o próximo resgate já estaria liberado.
+
+Cada carteira guarda saldo inteiro não negativo, totais recebidos/gastos, estatísticas, cooldowns e até 30 movimentações recentes. As carteiras dos membros existentes são inicializadas na conexão do bot; novos membros recebem a carteira ao entrar, e qualquer comando que consulte uma pessoa também cria a carteira se faltar. Daily, trabalho, crime, ajustes e apostas usam atualizações atômicas por carteira. O valor apostado é debitado antes do resultado e não pode ser usado novamente; partidas interativas e liquidações usam identificadores idempotentes.
+
+Em MongoDB com suporte a transações, uma transferência debita e credita as duas carteiras dentro de uma transação. Em MongoDB standalone, o Jinx usa uma saga persistida de transferência com um bloqueio global curto, reservas por carteira e marcadores idempotentes. Isso não é atomicidade entre documentos: se houver uma interrupção, a transferência fica pendente e é retomada pelo processo de recuperação ao iniciar ou no próximo ciclo. As carteiras envolvidas não aceitam outra movimentação enquanto a transferência estiver pendente.
+
+A configuração fica em `bot_config.modules.economy`; carteiras e histórico em `economy_wallets`; operações e recuperação de transferências em `economy_operations` e `economy_transfer_locks`. Não há Redis ou serviço externo.
 
 ## Boas-vindas
 

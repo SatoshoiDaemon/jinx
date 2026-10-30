@@ -30,6 +30,68 @@ export const DEFAULT_VOICE_CALL_SETTINGS = Object.freeze({
   categoryId: null,
 });
 
+export const SLOT_SYMBOLS = Object.freeze([
+  Object.freeze({ symbol: '🍒', weight: 40 }),
+  Object.freeze({ symbol: '🍋', weight: 25 }),
+  Object.freeze({ symbol: '🍇', weight: 15 }),
+  Object.freeze({ symbol: '🔔', weight: 10 }),
+  Object.freeze({ symbol: '⭐', weight: 7 }),
+  Object.freeze({ symbol: '💎', weight: 3 }),
+]);
+
+export const DEFAULT_ECONOMY_SETTINGS = Object.freeze({
+  enabled: true,
+  startingBalance: 100,
+  daily: Object.freeze({
+    reward: 100,
+    cooldownHours: 24,
+    streak: Object.freeze({
+      enabled: false,
+      bonusPerDay: 25,
+      maxBonus: 250,
+      maxDays: 10,
+    }),
+  }),
+  work: Object.freeze({
+    minReward: 50,
+    maxReward: 150,
+    cooldownSeconds: 3600,
+  }),
+  crime: Object.freeze({
+    successChancePercent: 40,
+    minReward: 100,
+    maxReward: 400,
+    minFine: 25,
+    maxFine: 200,
+    cooldownSeconds: 7200,
+  }),
+  transfer: Object.freeze({
+    minAmount: 1,
+    maxAmount: 100000,
+  }),
+  games: Object.freeze({
+    minBet: 10,
+    maxBet: 10000,
+    maxPayout: 1000000,
+    timeoutSeconds: 300,
+    blackjack: Object.freeze({ enabled: true }),
+    roulette: Object.freeze({ enabled: true }),
+    slots: Object.freeze({
+      enabled: true,
+      payouts: Object.freeze({
+        '🍒🍒🍒': 3,
+        '🍋🍋🍋': 4,
+        '🍇🍇🍇': 6,
+        '🔔🔔🔔': 10,
+        '⭐⭐⭐': 20,
+        '💎💎💎': 50,
+      }),
+    }),
+    coin: Object.freeze({ enabled: true }),
+    dice: Object.freeze({ enabled: true }),
+  }),
+});
+
 export const BOT_CONFIG_ID = 'jinx:config';
 export const BOT_CONFIG_COLLECTION = 'bot_config';
 

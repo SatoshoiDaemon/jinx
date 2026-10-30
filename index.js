@@ -7,6 +7,8 @@ import { registerInteractionCreate } from './src/events/interaction-create.js';
 import { registerMessageCreate } from './src/events/message-create.js';
 import { registerGuildMemberAdd } from './src/events/guild-member-add.js';
 import { registerVoiceCallEvents } from './src/events/voice-call.js';
+import { registerEconomyRecovery } from './src/events/economy.js';
+import { initializeEconomyRepository } from './src/modules/economy/repository.js';
 
 async function startBot() {
   const config = loadConfig();
@@ -20,14 +22,16 @@ async function startBot() {
       GatewayIntentBits.MessageContent,
     ],
   });
-  const context = { database, guildId: config.guildId };
+  const context = { database, guildId: config.guildId, mongoClient };
 
   try {
     await initializeDatabase(database, config.guildId);
+    await initializeEconomyRepository(database);
     registerMessageCreate(discordClient, context);
     registerGuildMemberAdd(discordClient, context);
     registerInteractionCreate(discordClient, context);
     registerVoiceCallEvents(discordClient, context);
+    registerEconomyRecovery(discordClient, context);
     discordClient.once(Events.ClientReady, (readyClient) => {
       console.info(`[Discord] Bot conectado como ${readyClient.user.tag}.`);
     });
