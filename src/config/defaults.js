@@ -9,6 +9,22 @@ export const DEFAULT_LEVEL_SETTINGS = Object.freeze({
   channelBoosts: Object.freeze({}),
 });
 
+export const DEFAULT_WELCOME_SETTINGS = Object.freeze({
+  initialRoles: Object.freeze({
+    enabled: false,
+    roleIds: Object.freeze([]),
+  }),
+  directMessage: Object.freeze({
+    enabled: false,
+    content: 'Olá, {user.mention}! Seja bem-vindo(a) ao {guild.name}. Você é nosso membro número {guild.memberCount}!',
+  }),
+  publicMessage: Object.freeze({
+    enabled: false,
+    channelId: null,
+    content: '{user.mention} entrou no servidor. Boas-vindas!',
+  }),
+});
+
 export const BOT_CONFIG_ID = 'jinx:config';
 export const BOT_CONFIG_COLLECTION = 'bot_config';
 

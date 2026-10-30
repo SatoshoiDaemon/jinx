@@ -8,6 +8,8 @@ import {
 } from '../../models/bot-config.js';
 import { editReplyV2, replyV2, v2EditPayload } from '../common/components-v2.js';
 import { validateLevelSettings } from '../levels/rules.js';
+import { getWelcomeSettings } from '../welcome/service.js';
+import { handleWelcomePanelInteraction } from '../welcome/panel.js';
 import {
   buildBoostLimitModal,
   buildBoostModal,
@@ -39,12 +41,16 @@ async function showCategory(interaction, database, category) {
     return;
   }
 
-  const settings = category === 'levels'
-    ? await getModuleConfig(database, 'levels', DEFAULT_LEVEL_SETTINGS)
-    : undefined;
-  await interaction.update(v2EditPayload(
-    renderPanelContent(category, settings),
-    { rows: buildPanelRows(category) },
+  await interaction.deferUpdate();
+  let settings;
+  if (category === 'levels') {
+    settings = await getModuleConfig(database, 'levels', DEFAULT_LEVEL_SETTINGS);
+  } else if (category === 'welcome') {
+    settings = await getWelcomeSettings(database);
+  }
+  await interaction.editReply(v2EditPayload(
+    renderPanelContent(category, settings, interaction.guild),
+    { rows: buildPanelRows(category, 'overview', settings) },
   ));
 }
 
@@ -66,6 +72,10 @@ export async function handlePanelInteraction(interaction, context) {
   if (interaction.isStringSelectMenu() && interaction.customId === 'panel:category') {
     await showCategory(interaction, context.database, interaction.values[0]);
     return true;
+  }
+
+  if (interaction.customId.startsWith('panel:welcome:')) {
+    return handleWelcomePanelInteraction(interaction, context);
   }
 
   if (interaction.isButton() && interaction.customId === 'panel:settings') {
