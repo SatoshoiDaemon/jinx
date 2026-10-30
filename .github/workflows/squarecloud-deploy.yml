@@ -1,0 +1,68 @@
+name: Deploy Square Cloud
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: squarecloud-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Validar sintaxe e configuração
+        run: npm run check
+
+      - name: Validar chave da Square Cloud
+        env:
+          SQUARECLOUD_API_KEY: ${{ secrets.SQUARECLOUD_API_KEY }}
+        shell: bash
+        run: |
+          if [[ -z "${SQUARECLOUD_API_KEY:-}" ]]; then
+            echo "::error::Configure o secret de Actions SQUARECLOUD_API_KEY para habilitar o deploy."
+            exit 1
+          fi
+
+      - name: Reconstruir arquivos privados
+        env:
+          JINX_ENV_FILE_BASE64: ${{ secrets.JINX_ENV_FILE_BASE64 }}
+          JINX_MONGODB_CERTIFICATE_PEM_BASE64: ${{ secrets.JINX_MONGODB_CERTIFICATE_PEM_BASE64 }}
+        run: npm run restore:github-secrets
+
+      - name: Montar ZIP de deploy
+        id: package
+        run: npm run package:squarecloud
+
+      - name: Enviar e reiniciar a aplicação
+        env:
+          SQUARECLOUD_API_KEY: ${{ secrets.SQUARECLOUD_API_KEY }}
+          SQUARECLOUD_APP_ID: e663fa87c2c646c5abfeca508851ef62
+          SQUARECLOUD_ZIP_PATH: ${{ steps.package.outputs.zip_path }}
+        run: npm run deploy:squarecloud
+
+      - name: Remover arquivos privados do runner
+        if: always()
+        run: |
+          rm -f "$GITHUB_WORKSPACE/.env" "$GITHUB_WORKSPACE/certs/certificate.pem"
+          rm -f "$GITHUB_WORKSPACE"/dist/*.zip
