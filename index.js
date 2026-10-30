@@ -6,6 +6,7 @@ import { registerGuildCommands } from './src/commands/register.js';
 import { registerInteractionCreate } from './src/events/interaction-create.js';
 import { registerMessageCreate } from './src/events/message-create.js';
 import { registerGuildMemberAdd } from './src/events/guild-member-add.js';
+import { registerVoiceCallEvents } from './src/events/voice-call.js';
 
 async function startBot() {
   const config = loadConfig();
@@ -14,6 +15,7 @@ async function startBot() {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
     ],
@@ -25,6 +27,7 @@ async function startBot() {
     registerMessageCreate(discordClient, context);
     registerGuildMemberAdd(discordClient, context);
     registerInteractionCreate(discordClient, context);
+    registerVoiceCallEvents(discordClient, context);
     discordClient.once(Events.ClientReady, (readyClient) => {
       console.info(`[Discord] Bot conectado como ${readyClient.user.tag}.`);
     });

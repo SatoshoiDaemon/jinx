@@ -15,6 +15,7 @@ import { WELCOME_PLACEHOLDERS } from '../welcome/placeholders.js';
 
 export const PANEL_CATEGORIES = Object.freeze([
   { id: 'levels', label: 'Níveis e economia', description: 'XP, progressão e boosts' },
+  { id: 'voice_calls', label: 'Calls temporárias', description: 'Calls criadas ao entrar em um canal' },
   { id: 'tickets', label: 'Tickets e atendimento', description: 'Indisponível no momento' },
   { id: 'welcome', label: 'Boas-vindas', description: 'Cargos iniciais e mensagens de entrada' },
   { id: 'suggestions', label: 'Sugestões', description: 'Indisponível no momento' },
@@ -128,7 +129,7 @@ export function renderPanelContent(category, settings, guild, welcomeSection = '
       '',
       'Escolha uma categoria no menu para abrir suas opções.',
       '',
-      '**Disponível:** níveis e boosts de XP, boas-vindas e comandos utilitários.',
+      '**Disponível:** níveis e boosts de XP, boas-vindas, calls temporárias e comandos utilitários.',
       '**Em preparação:** economia, tickets, sugestões e destaque de perfis.',
     ].join('\n');
   }
@@ -150,6 +151,25 @@ export function renderPanelContent(category, settings, guild, welcomeSection = '
 
   if (category === 'welcome') {
     return renderWelcomeContent(settings, guild, welcomeSection);
+  }
+
+  if (category === 'voice_calls') {
+    const baseChannel = settings.baseChannelId
+      ? guild?.channels.cache.get(settings.baseChannelId)
+      : null;
+    const targetCategory = settings.categoryId
+      ? guild?.channels.cache.get(settings.categoryId)
+      : null;
+    return [
+      `## ${PANEL_CATEGORIES.find((item) => item.id === category).label}`,
+      '',
+      `Canal base: ${baseChannel ? `<#${baseChannel.id}>` : 'não configurado'}`,
+      `Categoria: ${targetCategory ? `<#${targetCategory.id}>` : 'não configurada'}`,
+      '',
+      'Quando alguém entrar no canal base, o bot cria uma call com o nome da pessoa, move-a para lá e deixa a call aberta para todos. Quando a call fica vazia, ela é removida.',
+      '',
+      'Selecione um canal de voz e uma categoria nos controles abaixo. O bot precisa de **Gerenciar canais** e **Mover membros**.',
+    ].join('\n');
   }
 
   const selected = PANEL_CATEGORIES.find((item) => item.id === category);
@@ -268,6 +288,30 @@ export function buildPanelRows(category = 'home', welcomeSection = 'overview', w
       ? welcomeSection
       : 'overview';
     return [...rows, ...welcomeRows(section, welcomeSettings)];
+  }
+
+  if (category === 'voice_calls') {
+    const baseChannelSelect = new ChannelSelectMenuBuilder()
+      .setCustomId('panel:voice:base')
+      .setPlaceholder('Escolha o canal base de voz')
+      .setChannelTypes(ChannelType.GuildVoice)
+      .setMinValues(1)
+      .setMaxValues(1);
+    const targetCategorySelect = new ChannelSelectMenuBuilder()
+      .setCustomId('panel:voice:category')
+      .setPlaceholder('Escolha a categoria das calls')
+      .setChannelTypes(ChannelType.GuildCategory)
+      .setMinValues(1)
+      .setMaxValues(1);
+    rows.push(
+      new ActionRowBuilder().addComponents(baseChannelSelect),
+      new ActionRowBuilder().addComponents(targetCategorySelect),
+      new ActionRowBuilder().addComponents(
+        button('panel:voice:clear-base', 'Limpar canal base'),
+        button('panel:voice:clear-category', 'Limpar categoria'),
+      ),
+    );
+    return rows;
   }
 
   if (category !== 'levels') {

@@ -25,6 +25,11 @@ export const DEFAULT_WELCOME_SETTINGS = Object.freeze({
   }),
 });
 
+export const DEFAULT_VOICE_CALL_SETTINGS = Object.freeze({
+  baseChannelId: null,
+  categoryId: null,
+});
+
 export const BOT_CONFIG_ID = 'jinx:config';
 export const BOT_CONFIG_COLLECTION = 'bot_config';
 

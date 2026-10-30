@@ -1,5 +1,8 @@
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
-import { DEFAULT_LEVEL_SETTINGS } from '../../config/defaults.js';
+import {
+  DEFAULT_LEVEL_SETTINGS,
+  DEFAULT_VOICE_CALL_SETTINGS,
+} from '../../config/defaults.js';
 import {
   getModuleConfig,
   removeModuleConfigValue,
@@ -35,18 +38,22 @@ function parseMultiplier(value) {
   return multiplier;
 }
 
-async function showCategory(interaction, database, category) {
+async function showCategory(interaction, database, category, alreadyDeferred = false) {
   if (!PANEL_CATEGORIES.some((item) => item.id === category)) {
     await replyV2(interaction, 'Esta categoria do painel não está disponível.', { ephemeral: true });
     return;
   }
 
-  await interaction.deferUpdate();
+  if (!alreadyDeferred) {
+    await interaction.deferUpdate();
+  }
   let settings;
   if (category === 'levels') {
     settings = await getModuleConfig(database, 'levels', DEFAULT_LEVEL_SETTINGS);
   } else if (category === 'welcome') {
     settings = await getWelcomeSettings(database);
+  } else if (category === 'voice_calls') {
+    settings = await getModuleConfig(database, 'voice_calls', DEFAULT_VOICE_CALL_SETTINGS);
   }
   await interaction.editReply(v2EditPayload(
     renderPanelContent(category, settings, interaction.guild),
@@ -88,6 +95,20 @@ export async function handlePanelInteraction(interaction, context) {
     return true;
   }
 
+  if (interaction.isButton() && interaction.customId === 'panel:voice:clear-base') {
+    await interaction.deferUpdate();
+    await removeModuleConfigValue(context.database, 'voice_calls', 'baseChannelId');
+    await showCategory(interaction, context.database, 'voice_calls', true);
+    return true;
+  }
+
+  if (interaction.isButton() && interaction.customId === 'panel:voice:clear-category') {
+    await interaction.deferUpdate();
+    await removeModuleConfigValue(context.database, 'voice_calls', 'categoryId');
+    await showCategory(interaction, context.database, 'voice_calls', true);
+    return true;
+  }
+
   if (interaction.isRoleSelectMenu() && interaction.customId === 'panel:role') {
     await interaction.showModal(buildBoostModal('role', interaction.values[0]));
     return true;
@@ -95,6 +116,25 @@ export async function handlePanelInteraction(interaction, context) {
 
   if (interaction.isChannelSelectMenu() && interaction.customId === 'panel:channel') {
     await interaction.showModal(buildBoostModal('channel', interaction.values[0]));
+    return true;
+  }
+
+  const voiceSettingMatch = interaction.isChannelSelectMenu()
+    ? /^panel:voice:(base|category)$/.exec(interaction.customId)
+    : null;
+  if (voiceSettingMatch) {
+    const [, setting] = voiceSettingMatch;
+    const channel = interaction.guild.channels.cache.get(interaction.values[0]);
+    const expectedType = setting === 'base' ? ChannelType.GuildVoice : ChannelType.GuildCategory;
+    if (!channel || channel.type !== expectedType) {
+      await replyV2(interaction, 'O canal selecionado não está mais disponível.', { ephemeral: true });
+      return true;
+    }
+
+    const settingPath = setting === 'base' ? 'baseChannelId' : 'categoryId';
+    await interaction.deferUpdate();
+    await updateModuleConfigValue(context.database, 'voice_calls', settingPath, channel.id);
+    await showCategory(interaction, context.database, 'voice_calls', true);
     return true;
   }
 

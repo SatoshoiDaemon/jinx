@@ -20,7 +20,7 @@ Inicie o bot com:
 npm start
 ```
 
-Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de `GUILD_ID` e conecta ao Gateway do Discord. No Discord Developer Portal, habilite os intents `Guilds`, `Guild Members`, `Guild Messages` e o intent privilegiado `Message Content` em **Bot → Privileged Gateway Intents**. Ative também **Server Members Intent** (`Guild Members`), necessário para o evento `guildMemberAdd` e as boas-vindas. `Message Content` é necessário para reconhecer expressões de dados enviadas como mensagens. Conceda ao bot acesso aos canais e permissão para responder e usar comandos. Pessoas que alteram configurações precisam de `Gerenciar servidor`.
+Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de `GUILD_ID` e conecta ao Gateway do Discord. O código solicita os intents `Guilds`, `Guild Members`, `Guild Voice States`, `Guild Messages` e `Message Content`. No Discord Developer Portal, habilite os intents privilegiados `Message Content` e **Server Members Intent** (`Guild Members`); eles permitem reconhecer expressões de dados e processar boas-vindas. `Guild Voice States` permite detectar entradas e saídas de calls. Conceda ao bot acesso aos canais e permissão para responder e usar comandos. Para calls temporárias, ele também precisa de `Gerenciar canais` e `Mover membros`. Pessoas que alteram configurações precisam de `Gerenciar servidor`.
 
 ## Comandos e utilitários
 
@@ -31,7 +31,7 @@ Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de 
 - `/nivel adicionar` e `/nivel remover`: ajuste administrativo de níveis.
 - `/xp adicionar` e `/xp remover`: ajuste administrativo de XP.
 - `/perfil [membro]`: exibe informações básicas do perfil e o banner público, quando disponível.
-- `/painel`: abre o centro administrativo com controles de níveis e XP e a categoria **Boas-vindas**. As demais categorias ainda estão em preparação.
+- `/painel`: abre o centro administrativo com controles de níveis e XP, **Boas-vindas** e **Calls temporárias**. Em Calls temporárias, escolha um canal de voz base e a categoria para as calls. Ao entrar no canal base, a pessoa recebe uma call aberta, sem limite de participantes, com seu nome e é movida para ela. A call é apagada quando fica vazia; canal base e categoria podem ser removidos no painel.
 
 ## Boas-vindas
 
