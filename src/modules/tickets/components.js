@@ -13,9 +13,32 @@ import {
   TextInputBuilder,
   TextInputStyle,
   UserSelectMenuBuilder,
+  parseEmoji,
 } from 'discord.js';
 
 const ALLOWED_MENTIONS = Object.freeze({ parse: [] });
+let RGI_EMOJI_PATTERN = null;
+try {
+  RGI_EMOJI_PATTERN = new RegExp('^\\p{RGI_Emoji}$', 'v');
+} catch {
+  // Older supported Node builds can lack Unicode string properties.
+}
+
+export function isValidTicketEmoji(value) {
+  const input = String(value ?? '').trim();
+  if (!input) return true;
+
+  const emoji = parseEmoji(input);
+  if (!emoji?.name) return false;
+  if (emoji.id) return /^\d{17,20}$/u.test(emoji.id);
+  if (RGI_EMOJI_PATTERN) return RGI_EMOJI_PATTERN.test(emoji.name);
+  if (/^[#*0-9]\uFE0F?\u20E3$/u.test(emoji.name)) return true;
+
+  const graphemes = [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(emoji.name)];
+  return graphemes.length === 1
+    && /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u.test(emoji.name)
+    && !/[\p{Letter}\p{Number}\p{White_Space}]/u.test(emoji.name);
+}
 
 function textInput(customId, label, value, {
   style = TextInputStyle.Short,

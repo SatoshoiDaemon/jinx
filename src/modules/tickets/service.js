@@ -30,6 +30,7 @@ import {
   ticketControlMessagePayload,
   ticketResolveConfirmationRows,
   ticketUserSelectRow,
+  isValidTicketEmoji,
 } from './components.js';
 import { createTranscriptHtml, fetchAllThreadMessages } from './transcript.js';
 
@@ -322,6 +323,16 @@ export async function publishTicketPanel(panelId, context) {
     if (!panel) throw new TicketFlowError('PANEL_NOT_FOUND');
     if (!panel.channelId) throw new TicketFlowError('PANEL_CHANNEL_REQUIRED');
     if ((panel.options?.length ?? 0) > 25) throw new TicketFlowError('PANEL_OPTION_LIMIT');
+    const activeOptions = (panel.options ?? []).filter((option) => option.active !== false);
+    const invalidOptionNumbers = activeOptions
+      .map((option, index) => ({ option, index }))
+      .filter(({ option }) => option.emoji && !isValidTicketEmoji(option.emoji))
+      .map(({ index }) => index + 1);
+    if (invalidOptionNumbers.length) {
+      const error = new TicketFlowError('PANEL_OPTION_EMOJI_INVALID');
+      error.invalidOptionNumbers = invalidOptionNumbers;
+      throw error;
+    }
     const channel = await fetchChannel(context.guild, panel.channelId);
     if (!isTextChannel(channel)) throw new TicketFlowError('PANEL_CHANNEL_INVALID');
     await assertPanelBotPermissions(channel, context.guild, panel);

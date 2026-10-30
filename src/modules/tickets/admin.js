@@ -13,6 +13,7 @@ import {
   buildTicketOptionSettingsModal,
   buildTicketPanelModal,
   buildTicketSettingsModal,
+  isValidTicketEmoji,
   ticketPanelConfirmationRows,
 } from './components.js';
 import {
@@ -74,6 +75,12 @@ function panelPublishErrorResponse(error) {
   if (error?.message === 'PANEL_CHANNEL_INVALID') {
     return 'O canal de publicação não está disponível ou não aceita mensagens.';
   }
+  if (error?.message === 'PANEL_OPTION_EMOJI_INVALID') {
+    const options = error.invalidOptionNumbers?.length
+      ? ` (opções ${error.invalidOptionNumbers.join(', ')})`
+      : '';
+    return `O Discord rejeitou o emoji de uma ou mais opções${options}. Troque ou remova os emojis e publique novamente.`;
+  }
   if (error?.message === 'PANEL_BOT_PERMISSIONS') {
     const labels = {
       [PermissionFlagsBits.ViewChannel]: 'Ver canal',
@@ -87,16 +94,7 @@ function panelPublishErrorResponse(error) {
     return 'Este painel já está sendo publicado. Tente novamente em alguns segundos.';
   }
 
-  const validationErrors = collectDiscordValidationErrors(error?.rawError?.errors);
-  const status = error?.status ?? error?.httpStatus;
-  const code = error?.rawError?.code ?? error?.code;
-  const details = validationErrors.length
-    ? validationErrors.map((item) => `${item.path}: ${item.message}`).join(' · ')
-    : error?.rawError?.message ?? error?.message ?? error?.name ?? 'erro desconhecido';
-  const prefix = [status ? `HTTP ${status}` : null, code ? `código ${code}` : null]
-    .filter(Boolean)
-    .join(' · ');
-  return `Falha ao publicar${prefix ? ` (${prefix})` : ''}: ${String(details).slice(0, 1300)}. O detalhe também foi registrado no log do bot.`;
+  return 'Não foi possível publicar o painel. Confira a configuração e tente novamente.';
 }
 
 function hasManageServer(interaction) {
@@ -139,6 +137,7 @@ function validatePanelText({ name, title, description, message, imageUrls }) {
 
 function validateEmoji(emoji, label) {
   if (!emoji) return;
+  if (!isValidTicketEmoji(emoji)) throw new Error('OPTION_EMOJI_INVALID');
   try {
     new ButtonBuilder()
       .setCustomId('ticket:emoji-check')
@@ -339,7 +338,7 @@ async function handlePanelModal(interaction, context) {
         : error.message === 'OPTION_REPLY_REQUIRED'
           ? 'Informe a resposta privada para ações do tipo `reply`.'
           : error.message === 'OPTION_EMOJI_INVALID'
-            ? 'O emoji informado não é válido.'
+            ? 'Use um único emoji Unicode válido ou um emoji personalizado do servidor.'
             : 'Confira o rótulo, descrição e a ação (`ticket` ou `reply`) da opção.';
       await modalReply(message);
       return true;
