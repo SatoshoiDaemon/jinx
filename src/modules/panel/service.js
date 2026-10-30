@@ -14,6 +14,8 @@ import { validateLevelSettings } from '../levels/rules.js';
 import { getWelcomeSettings } from '../welcome/service.js';
 import { getEconomySettings, validateEconomySettings } from '../economy/config.js';
 import { handleWelcomePanelInteraction } from '../welcome/panel.js';
+import { handleTicketAdminInteraction } from '../tickets/admin.js';
+import { showTicketAdmin } from '../tickets/admin-ui.js';
 import {
   buildBoostLimitModal,
   buildBoostModal,
@@ -69,6 +71,10 @@ async function showCategory(interaction, database, category, alreadyDeferred = f
     await showLevelsSection(interaction, database, 'levels', 'overview', alreadyDeferred);
     return;
   }
+  if (category === 'tickets') {
+    await showTicketAdmin(interaction, { database, guild: interaction.guild }, { alreadyDeferred });
+    return;
+  }
   if (!alreadyDeferred) {
     await interaction.deferUpdate();
   }
@@ -122,8 +128,11 @@ function setNestedValue(target, path, value) {
 }
 
 export async function handlePanelInteraction(interaction, context) {
+  const ticketAdminInteraction = interaction.customId?.startsWith('panel:tickets:')
+    || interaction.customId?.startsWith('pt:o:')
+    || interaction.customId?.startsWith('ptm:');
   if (
-    !interaction.customId?.startsWith('panel:')
+    (!interaction.customId?.startsWith('panel:') && !ticketAdminInteraction)
     || (!interaction.isButton() && !interaction.isRoleSelectMenu()
       && !interaction.isChannelSelectMenu() && !interaction.isStringSelectMenu()
       && !interaction.isModalSubmit())
@@ -134,6 +143,10 @@ export async function handlePanelInteraction(interaction, context) {
   if (!hasPanelPermission(interaction)) {
     await replyV2(interaction, 'Você precisa da permissão **Gerenciar servidor** para usar este painel.', { ephemeral: true });
     return true;
+  }
+
+  if (ticketAdminInteraction) {
+    return handleTicketAdminInteraction(interaction, context);
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'panel:category') {

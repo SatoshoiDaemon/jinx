@@ -2,6 +2,7 @@ import { commandsByName } from './registry.js';
 import { editReplyV2, replyV2 } from '../modules/common/components-v2.js';
 import { handlePanelInteraction } from '../modules/panel/service.js';
 import { handleEconomyInteraction } from '../modules/economy/interactions.js';
+import { handleTicketInteraction } from '../modules/tickets/service.js';
 import { isAuthorizedGuild } from '../discord/guild.js';
 
 export async function handleInteraction(interaction, context) {
@@ -21,12 +22,13 @@ export async function handleInteraction(interaction, context) {
   }
 
   const handled = await handlePanelInteraction(interaction, context)
-    || await handleEconomyInteraction(interaction, context);
+    || await handleEconomyInteraction(interaction, context)
+    || await handleTicketInteraction(interaction, context);
   if (
     !handled
     && (interaction.isButton() || interaction.isRoleSelectMenu()
       || interaction.isChannelSelectMenu() || interaction.isStringSelectMenu()
-      || interaction.isModalSubmit())
+      || interaction.isUserSelectMenu() || interaction.isModalSubmit())
   ) {
     await replyV2(interaction, 'Este componente não está mais disponível. Abra o painel novamente.', { ephemeral: true });
   }

@@ -15,7 +15,8 @@ const HELP_TEXT = [
   '`/aposta blackjack|roleta|slots|moeda|dados` — jogos com Yen fictício, sem dinheiro real.',
   '`/ranking economia|nivel` — exibe os rankings de saldo e nível.',
   '`/adicionar yen` e `/remover yen` — ajustes administrativos (Gerenciar servidor).',
-  '`/painel` — configura níveis, economia, boas-vindas e calls (Gerenciar servidor).',
+  '`/painel` — configura níveis, economia, boas-vindas, calls e painéis de tickets (Gerenciar servidor).',
+  'Painéis de atendimento abrem tickets privados por formulário; o controle fica fixado no tópico.',
   '`/botinfo`, `/uptime` e `/ping` — informações do bot e latência.',
 ].join('\n');
 

@@ -20,7 +20,7 @@ Inicie o bot com:
 npm start
 ```
 
-Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de `GUILD_ID` e conecta ao Gateway do Discord. O código solicita os intents `Guilds`, `Guild Members`, `Guild Voice States`, `Guild Messages` e `Message Content`. No Discord Developer Portal, habilite os intents privilegiados `Message Content` e **Server Members Intent** (`Guild Members`); eles permitem reconhecer expressões de dados e processar boas-vindas. `Guild Voice States` permite detectar entradas e saídas de calls. Conceda ao bot acesso aos canais e permissão para responder e usar comandos. Para calls temporárias, ele também precisa de `Gerenciar canais` e `Mover membros`. Pessoas que alteram configurações precisam de `Gerenciar servidor`.
+Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de `GUILD_ID` e conecta ao Gateway do Discord. O código solicita os intents `Guilds`, `Guild Members`, `Guild Voice States`, `Guild Messages` e `Message Content`. No Discord Developer Portal, habilite os intents privilegiados `Message Content` e **Server Members Intent** (`Guild Members`); eles permitem reconhecer expressões de dados, processar boas-vindas e adicionar membros dos cargos de atendimento aos tópicos privados. `Guild Voice States` permite detectar entradas e saídas de calls. Conceda ao bot acesso aos canais e permissão para responder e usar comandos. Para calls temporárias, ele também precisa de `Gerenciar canais` e `Mover membros`. Pessoas que alteram configurações precisam de `Gerenciar servidor`.
 
 ## Comandos e utilitários
 
@@ -31,7 +31,29 @@ Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de 
 - `/nivel adicionar` e `/nivel remover`: ajuste administrativo de níveis.
 - `/xp adicionar` e `/xp remover`: ajuste administrativo de XP.
 - `/perfil [membro]`: exibe informações básicas do perfil e o banner público, quando disponível.
-- `/painel`: abre o centro administrativo com níveis e economia, **Boas-vindas** e **Calls temporárias**. Em Calls temporárias, escolha um canal de voz base e a categoria para as calls. Ao entrar no canal base, a pessoa recebe uma call aberta, sem limite de participantes, com seu nome e é movida para ela. A call é apagada quando fica vazia; canal base e categoria podem ser removidos no painel.
+- `/painel`: abre o centro administrativo com níveis e economia, **Boas-vindas**, **Calls temporárias** e **Tickets e atendimento**. Em Calls temporárias, escolha um canal de voz base e a categoria para as calls. Ao entrar no canal base, a pessoa recebe uma call aberta, sem limite de participantes, com seu nome e é movida para ela. A call é apagada quando fica vazia; canal base e categoria podem ser removidos no painel.
+
+## Tickets e atendimento
+
+Toda a administração fica em `/painel` → **Tickets e atendimento**. A seção **Configurações** define o canal padrão para tópicos privados, cargos de atendimento, canal de logs operacionais, canal de transcripts, limite simultâneo por membro, permissão para o solicitante reabrir e comportamento do tópico após resolução. Logs e transcripts precisam usar canais diferentes. Cada painel pode substituir o canal, os cargos, o prefixo, a mensagem inicial e o limite para uma opção específica.
+
+Em **Painéis de atendimento**, crie vários painéis, edite título, descrição, mensagem e até 10 imagens HTTPS, escolha botões ou Select Menu, configure opções, selecione o canal de publicação, publique/atualize e ative, desative ou exclua. Cada painel aceita até 25 opções para respeitar os limites de componentes do Discord. Uma opção pode abrir um ticket ou enviar uma resposta privada efêmera, sem DM. Alterações sincronizam a publicação existente quando a mensagem ainda está disponível.
+
+Ao escolher uma opção de ticket, o membro preenche o Modal **Solicitar atendimento** com o motivo obrigatório. O Jinx valida novamente painel, opção e limite, reserva uma vaga atomicamente no MongoDB e cria um tópico privado no canal configurado. O solicitante e cada membro atual dos cargos de atendimento são adicionados individualmente; cargos não concedem acesso automaticamente a threads privadas. Novos membros que recebem o cargo de atendimento também são adicionados aos tickets abertos. O ticket recebe uma mensagem de controle com embed, motivo completo e botões, que o Jinx fixa no tópico.
+
+O controle permite ao solicitante e à equipe fechar ou resolver o ticket. Fechar arquiva temporariamente o tópico; a equipe pode reabri-lo e o solicitante pode reabri-lo se essa opção estiver habilitada. Resolver pede confirmação, pagina o histórico inteiro disponível, cria um arquivo HTML e o envia ao canal de transcripts. Depois do envio, o estado passa a **encerrado** e é irreversível; o tópico é arquivado ou excluído conforme a configuração. Se gerar ou enviar o arquivo falhar, o ticket permanece recuperável para uma nova tentativa.
+
+A equipe pode assumir um ticket, transferir explicitamente ou liberar a responsabilidade, adicionar membros e remover participantes adicionais. O solicitante, o atendente responsável e o bot não podem ser removidos pelo seletor de participantes; libere ou transfira o atendimento primeiro. Se alguém perder todos os cargos de atendimento configurados, o Jinx libera sua responsabilidade e revoga o acesso que não venha de uma participação explícita. As permissões são conferidas no servidor a cada ação. Painéis e tickets, estados, participantes, responsáveis, eventos, tentativas de transcript e identificadores das mensagens ficam no MongoDB; os controles continuam funcionando depois de reiniciar o bot.
+
+### Permissões e limites no Discord
+
+No canal que hospeda os tópicos, conceda ao bot `Ver canal`, `Criar tópicos privados`, `Enviar mensagens em tópicos`, `Gerenciar tópicos`, `Ler histórico de mensagens`, `Incorporar links` (para o embed de controle) e `Gerenciar mensagens` (necessário para fixá-lo). Membros do servidor precisam de `Ver canal` e `Enviar mensagens em tópicos` nesse canal; o bot verifica essas permissões antes de abrir o ticket. A associação a uma thread privada não contorna uma negação de acesso ao canal pai.
+
+No canal de publicação, o bot precisa de `Ver canal` e `Enviar mensagens`; conceda também `Incorporar links` para que as imagens externas do painel sejam exibidas. No canal de logs, conceda `Incorporar links`; no canal de transcripts, conceda `Anexar arquivos`. Os membros dos cargos de atendimento precisam poder ver o canal pai para que o Jinx consiga adicioná-los ao tópico. O limite de membros de equipe que o bot adiciona a uma thread é 950, além do solicitante e do bot.
+
+O intent privilegiado `Server Members Intent` já é solicitado pelo Jinx para boas-vindas e para manter o acesso da equipe às threads; não é necessário ativar um intent adicional para tickets se ele já estiver habilitado. Para operação manual no Discord Developer Portal, mantenha esse intent habilitado e atualize as permissões do bot conforme os canais escolhidos. O Jinx não cria canais individuais nem usa canais de fórum.
+
+O transcript inclui mensagens, conteúdo textual, anexos, links, imagens e embeds disponíveis. Versões anteriores de mensagens editadas e mensagens apagadas não podem ser recuperadas. O arquivo respeita o limite de upload do servidor; se o histórico ultrapassar esse limite, o ticket continua aberto/fechado e a finalização pode ser tentada novamente depois de ajustar o limite ou o histórico disponível. Se um tópico for excluído manualmente, os metadados permanecem e a vaga simultânea é liberada, mas o histórico removido não pode ser transcrito.
 
 ## Economia virtual em Yen
 
@@ -109,7 +131,7 @@ As configurações ativas ficam no documento global `_id: "jinx:config"`, na col
 
 O módulo guarda `initialRoles: { enabled, roleIds }`, `directMessage: { enabled, content }` e `publicMessage: { enabled, channelId, content }`. Os três recursos começam desativados; a duração de 5 segundos da mensagem pública é fixa e não é uma opção persistida.
 
-Na primeira inicialização após esta versão, uma adaptação idempotente copia as configurações da guilda de `GUILD_ID` para `jinx:config`, converte os registros de XP dessa guilda preservando XP e timestamps e remove o índice composto antigo. Os documentos legados só são removidos após a cópia correspondente. A conexão MongoDB continua usando TLS mútuo.
+Na primeira inicialização após a versão single-guild, uma adaptação idempotente copia as configurações da guilda de `GUILD_ID` para `jinx:config`, converte os registros de XP dessa guilda preservando XP e timestamps e remove o índice composto antigo. Os documentos legados só são removidos após a cópia correspondente. Tickets usam `bot_config.modules.tickets`, `ticket_panels`, `tickets`, `ticket_requests`, `ticket_events`, `ticket_counters` e `ticket_member_limits`; nenhum desses documentos inclui `guildId`. A conexão MongoDB continua usando TLS mútuo.
 
 ## ZIP local da Square Cloud
 

@@ -30,6 +30,18 @@ export const DEFAULT_VOICE_CALL_SETTINGS = Object.freeze({
   categoryId: null,
 });
 
+export const DEFAULT_TICKET_SETTINGS = Object.freeze({
+  enabled: true,
+  defaultThreadChannelId: null,
+  staffRoleIds: Object.freeze([]),
+  logsChannelId: null,
+  transcriptsChannelId: null,
+  maxTicketsPerMember: 1,
+  requesterCanReopen: false,
+  resolvedThreadBehavior: 'archive',
+  defaultInitialMessage: 'A equipe responsável verá sua solicitação em breve. Enquanto isso, conte aqui os detalhes que podem ajudar no atendimento.',
+});
+
 export const SLOT_SYMBOLS = Object.freeze([
   Object.freeze({ symbol: '🍒', weight: 40 }),
   Object.freeze({ symbol: '🍋', weight: 25 }),

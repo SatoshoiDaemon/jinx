@@ -3,6 +3,7 @@ import {
   BOT_CONFIG_ID,
   DEFAULT_ECONOMY_SETTINGS,
   DEFAULT_LEVEL_SETTINGS,
+  DEFAULT_TICKET_SETTINGS,
   DEFAULT_WELCOME_SETTINGS,
 } from '../config/defaults.js';
 
@@ -30,6 +31,7 @@ export async function ensureBotConfig(database) {
           levels: { ...DEFAULT_LEVEL_SETTINGS },
           economy: DEFAULT_ECONOMY_SETTINGS,
           welcome: DEFAULT_WELCOME_SETTINGS,
+          tickets: DEFAULT_TICKET_SETTINGS,
         },
         createdAt: new Date(),
       },

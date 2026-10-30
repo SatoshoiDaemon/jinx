@@ -17,7 +17,7 @@ import { formatYen } from '../economy/service.js';
 export const PANEL_CATEGORIES = Object.freeze([
   { id: 'levels', label: 'Níveis e economia', description: 'XP, boosts, Yen e apostas' },
   { id: 'voice_calls', label: 'Calls temporárias', description: 'Calls criadas ao entrar em um canal' },
-  { id: 'tickets', label: 'Tickets e atendimento', description: 'Indisponível no momento' },
+  { id: 'tickets', label: 'Tickets e atendimento', description: 'Painéis, tópicos privados, logs e transcripts' },
   { id: 'welcome', label: 'Boas-vindas', description: 'Cargos iniciais e mensagens de entrada' },
   { id: 'suggestions', label: 'Sugestões', description: 'Indisponível no momento' },
   { id: 'profile', label: 'Destaque de perfis', description: 'Indisponível no momento' },
@@ -231,8 +231,8 @@ export function renderPanelContent(
       '',
       'Escolha uma categoria no menu para abrir suas opções.',
       '',
-      '**Disponível:** níveis e boosts de XP, economia em Yen, boas-vindas, calls temporárias e comandos utilitários.',
-      '**Em preparação:** tickets, sugestões e destaque de perfis.',
+      '**Disponível:** níveis e boosts de XP, economia em Yen, boas-vindas, calls temporárias, tickets e comandos utilitários.',
+      '**Em preparação:** sugestões e destaque de perfis.',
     ].join('\n');
   }
 
@@ -274,6 +274,16 @@ export function renderPanelContent(
       'Quando alguém entrar no canal base, o bot cria uma call com o nome da pessoa, move-a para lá e deixa a call aberta para todos. Quando a call fica vazia, ela é removida.',
       '',
       'Selecione um canal de voz e uma categoria nos controles abaixo. O bot precisa de **Gerenciar canais** e **Mover membros**.',
+    ].join('\n');
+  }
+
+  if (category === 'tickets') {
+    return [
+      '## Tickets e atendimento',
+      '',
+      'Configure painéis públicos ou mensagens privadas. Opções de abertura criam um tópico privado, solicitam o motivo em formulário e fixam o painel de controle do ticket.',
+      '',
+      'Use as subseções para ajustar canais e equipe ou administrar painéis e opções.',
     ].join('\n');
   }
 

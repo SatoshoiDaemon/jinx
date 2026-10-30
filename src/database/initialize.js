@@ -3,6 +3,7 @@ import {
   BOT_CONFIG_ID,
   DEFAULT_ECONOMY_SETTINGS,
   DEFAULT_LEVEL_SETTINGS,
+  DEFAULT_TICKET_SETTINGS,
   DEFAULT_WELCOME_SETTINGS,
 } from '../config/defaults.js';
 
@@ -38,6 +39,7 @@ async function migrateLegacyConfig(database, guildId) {
           levels: readLegacyLevelSettings(legacyDocument),
           economy: DEFAULT_ECONOMY_SETTINGS,
           welcome: DEFAULT_WELCOME_SETTINGS,
+          tickets: DEFAULT_TICKET_SETTINGS,
         },
         createdAt,
         ...(legacyDocument?.updatedAt ? { updatedAt: legacyDocument.updatedAt } : {}),
@@ -134,5 +136,9 @@ export async function initializeDatabase(database, guildId) {
   await database.collection(BOT_CONFIG_COLLECTION).updateOne(
     { _id: BOT_CONFIG_ID, 'modules.economy': { $exists: false } },
     { $set: { 'modules.economy': DEFAULT_ECONOMY_SETTINGS } },
+  );
+  await database.collection(BOT_CONFIG_COLLECTION).updateOne(
+    { _id: BOT_CONFIG_ID, 'modules.tickets': { $exists: false } },
+    { $set: { 'modules.tickets': DEFAULT_TICKET_SETTINGS } },
   );
 }
