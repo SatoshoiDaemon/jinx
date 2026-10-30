@@ -59,9 +59,44 @@ function logPanelPublishFailure(error, panel) {
       discordCode: error?.rawError?.code ?? null,
       discordMessage: String(error?.rawError?.message ?? error?.message ?? 'Unknown error').slice(0, 240),
       missingPermissions: error?.missingPermissions ?? [],
-      validationErrors: collectDiscordValidationErrors(error?.rawError?.errors),
+      validationErrors: JSON.stringify(collectDiscordValidationErrors(error?.rawError?.errors)),
     },
   });
+}
+
+function panelPublishErrorResponse(error) {
+  if (error?.message === 'PANEL_CHANNEL_REQUIRED') {
+    return 'Selecione o canal de publicação do painel primeiro.';
+  }
+  if (error?.message === 'PANEL_OPTION_LIMIT') {
+    return 'O painel excede o limite de 25 opções.';
+  }
+  if (error?.message === 'PANEL_CHANNEL_INVALID') {
+    return 'O canal de publicação não está disponível ou não aceita mensagens.';
+  }
+  if (error?.message === 'PANEL_BOT_PERMISSIONS') {
+    const labels = {
+      [PermissionFlagsBits.ViewChannel]: 'Ver canal',
+      [PermissionFlagsBits.SendMessages]: 'Enviar mensagens',
+      [PermissionFlagsBits.EmbedLinks]: 'Incorporar links',
+      [PermissionFlagsBits.UseExternalEmojis]: 'Usar emojis externos',
+    };
+    return `Faltam permissões no canal de publicação: ${(error.missingPermissions ?? []).map((permission) => labels[permission] ?? 'permissão necessária').join(', ')}.`;
+  }
+  if (error?.message === 'PANEL_BUSY') {
+    return 'Este painel já está sendo publicado. Tente novamente em alguns segundos.';
+  }
+
+  const validationErrors = collectDiscordValidationErrors(error?.rawError?.errors);
+  const status = error?.status ?? error?.httpStatus;
+  const code = error?.rawError?.code ?? error?.code;
+  const details = validationErrors.length
+    ? validationErrors.map((item) => `${item.path}: ${item.message}`).join(' · ')
+    : error?.rawError?.message ?? error?.message ?? error?.name ?? 'erro desconhecido';
+  const prefix = [status ? `HTTP ${status}` : null, code ? `código ${code}` : null]
+    .filter(Boolean)
+    .join(' · ');
+  return `Falha ao publicar${prefix ? ` (${prefix})` : ''}: ${String(details).slice(0, 1300)}. O detalhe também foi registrado no log do bot.`;
 }
 
 function hasManageServer(interaction) {
@@ -434,22 +469,7 @@ export async function handleTicketAdminInteraction(interaction, context) {
       } catch (error) {
         const panel = await context.database.collection(PANELS).findOne({ _id: publish[1] }).catch(() => null);
         logPanelPublishFailure(error, panel);
-        await interaction.editReply({ content: error.message === 'PANEL_CHANNEL_REQUIRED'
-          ? 'Selecione o canal de publicação do painel primeiro.'
-          : error.message === 'PANEL_OPTION_LIMIT'
-            ? 'O painel excede o limite de 25 opções.'
-            : error.message === 'PANEL_CHANNEL_INVALID'
-              ? 'O canal de publicação não está disponível ou não aceita mensagens.'
-              : error.message === 'PANEL_BOT_PERMISSIONS'
-                ? `Faltam permissões no canal de publicação: ${(error.missingPermissions ?? []).map((permission) => ({
-                  [PermissionFlagsBits.ViewChannel]: 'Ver canal',
-                  [PermissionFlagsBits.SendMessages]: 'Enviar mensagens',
-                  [PermissionFlagsBits.EmbedLinks]: 'Incorporar links',
-                  [PermissionFlagsBits.UseExternalEmojis]: 'Usar emojis externos',
-                })[permission] ?? 'permissão necessária').join(', ')}.`
-                : error.message === 'PANEL_BUSY'
-                  ? 'Este painel já está sendo publicado. Tente novamente em alguns segundos.'
-                  : 'Não foi possível publicar o painel. A falha foi registrada para diagnóstico.' });
+        await interaction.editReply({ content: panelPublishErrorResponse(error) });
       }
       return true;
     }
