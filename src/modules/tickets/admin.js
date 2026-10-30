@@ -26,6 +26,44 @@ import {
 
 const PANELS = TICKET_PANEL_COLLECTION;
 
+function collectDiscordValidationErrors(value, path = '', output = []) {
+  if (!value || typeof value !== 'object' || output.length >= 12) return output;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectDiscordValidationErrors(item, `${path}[${index}]`, output));
+    return output;
+  }
+  for (const issue of value._errors ?? []) {
+    output.push({
+      path: path || '(request)',
+      code: String(issue.code ?? 'UNKNOWN').slice(0, 80),
+      message: String(issue.message ?? 'Invalid field').slice(0, 180),
+    });
+  }
+  for (const [key, child] of Object.entries(value)) {
+    if (key === '_errors') continue;
+    collectDiscordValidationErrors(child, path ? `${path}.${key}` : key, output);
+  }
+  return output;
+}
+
+function logPanelPublishFailure(error, panel) {
+  console.error('[Tickets] Falha ao publicar painel de atendimento.', {
+    panelId: panel?._id ?? null,
+    channelId: panel?.channelId ?? null,
+    interactionType: panel?.interactionType ?? null,
+    activeOptionCount: panel?.options?.filter((option) => option.active !== false).length ?? 0,
+    error: {
+      name: error?.name ?? 'Error',
+      code: error?.code ?? null,
+      status: error?.status ?? null,
+      discordCode: error?.rawError?.code ?? null,
+      discordMessage: String(error?.rawError?.message ?? error?.message ?? 'Unknown error').slice(0, 240),
+      missingPermissions: error?.missingPermissions ?? [],
+      validationErrors: collectDiscordValidationErrors(error?.rawError?.errors),
+    },
+  });
+}
+
 function hasManageServer(interaction) {
   return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
 }
@@ -394,11 +432,24 @@ export async function handleTicketAdminInteraction(interaction, context) {
         const message = await publishTicketPanel(publish[1], { ...context, guild: interaction.guild });
         await interaction.editReply({ content: `Painel publicado ou atualizado: ${message.url}` });
       } catch (error) {
+        const panel = await context.database.collection(PANELS).findOne({ _id: publish[1] }).catch(() => null);
+        logPanelPublishFailure(error, panel);
         await interaction.editReply({ content: error.message === 'PANEL_CHANNEL_REQUIRED'
           ? 'Selecione o canal de publicação do painel primeiro.'
           : error.message === 'PANEL_OPTION_LIMIT'
             ? 'O painel excede o limite de 25 opções.'
-            : 'Não foi possível publicar o painel. Confira o canal e as permissões do bot.' });
+            : error.message === 'PANEL_CHANNEL_INVALID'
+              ? 'O canal de publicação não está disponível ou não aceita mensagens.'
+              : error.message === 'PANEL_BOT_PERMISSIONS'
+                ? `Faltam permissões no canal de publicação: ${(error.missingPermissions ?? []).map((permission) => ({
+                  [PermissionFlagsBits.ViewChannel]: 'Ver canal',
+                  [PermissionFlagsBits.SendMessages]: 'Enviar mensagens',
+                  [PermissionFlagsBits.EmbedLinks]: 'Incorporar links',
+                  [PermissionFlagsBits.UseExternalEmojis]: 'Usar emojis externos',
+                })[permission] ?? 'permissão necessária').join(', ')}.`
+                : error.message === 'PANEL_BUSY'
+                  ? 'Este painel já está sendo publicado. Tente novamente em alguns segundos.'
+                  : 'Não foi possível publicar o painel. A falha foi registrada para diagnóstico.' });
       }
       return true;
     }

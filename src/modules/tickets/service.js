@@ -5,6 +5,7 @@ import {
   ChannelType,
   EmbedBuilder,
   ModalBuilder,
+  parseEmoji,
   PermissionFlagsBits,
   TextInputBuilder,
   TextInputStyle,
@@ -221,6 +222,24 @@ function assertHostBotPermissions(channel, botMember) {
   }
 }
 
+async function assertPanelBotPermissions(channel, guild, panel) {
+  const botMember = await guild.members.fetchMe();
+  const permissions = channel.permissionsFor(botMember);
+  const required = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages];
+  if (panel.imageUrls?.length) required.push(PermissionFlagsBits.EmbedLinks);
+  const hasExternalEmoji = panel.options?.some((option) => {
+    const emoji = parseEmoji(option.emoji ?? '');
+    return Boolean(emoji?.id && !guild.emojis.cache.has(emoji.id));
+  });
+  if (hasExternalEmoji) required.push(PermissionFlagsBits.UseExternalEmojis);
+  const missing = required.filter((permission) => !permissions?.has(permission));
+  if (missing.length) {
+    const error = new TicketFlowError('PANEL_BOT_PERMISSIONS');
+    error.missingPermissions = missing;
+    throw error;
+  }
+}
+
 function assertMemberHostPermissions(channel, member) {
   const permissions = channel.permissionsFor(member);
   if (!permissions?.has(PermissionFlagsBits.ViewChannel)
@@ -305,6 +324,7 @@ export async function publishTicketPanel(panelId, context) {
     if ((panel.options?.length ?? 0) > 25) throw new TicketFlowError('PANEL_OPTION_LIMIT');
     const channel = await fetchChannel(context.guild, panel.channelId);
     if (!isTextChannel(channel)) throw new TicketFlowError('PANEL_CHANNEL_INVALID');
+    await assertPanelBotPermissions(channel, context.guild, panel);
     const settings = await getTicketSettings(context.database);
     const payload = buildPublishedPanelPayload(panel, settings.enabled);
     let message = await fetchPublishedMessage(channel, panel);

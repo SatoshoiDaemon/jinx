@@ -150,6 +150,8 @@ function renderPanels(panels, panel, page) {
     `Interação: **${panel.interactionType === 'select' ? 'Select Menu' : 'botões'}**`,
     `Opções: **${panel.options?.filter((option) => option.active !== false).length ?? 0} ativas** de ${panel.options?.length ?? 0}`,
     '',
+    'As opções pertencem ao painel: no modo Botões, cada uma vira um botão; cada escolha pode abrir um ticket independente ou responder em privado.',
+    '',
     'Edite o conteúdo, escolha o canal e publique. Painéis publicados são atualizados na mesma mensagem quando ela ainda existe.',
   ].join('\n');
 }
