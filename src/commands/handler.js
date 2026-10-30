@@ -1,8 +1,13 @@
 import { commandsByName } from './registry.js';
 import { editReplyV2, replyV2 } from '../modules/common/components-v2.js';
 import { handlePanelInteraction } from '../modules/panel/service.js';
+import { isAuthorizedGuild } from '../discord/guild.js';
 
 export async function handleInteraction(interaction, context) {
+  if (!isAuthorizedGuild(interaction.guildId, context.guildId)) {
+    return;
+  }
+
   if (interaction.isChatInputCommand()) {
     const command = commandsByName.get(interaction.commandName);
     if (!command) {
@@ -18,7 +23,8 @@ export async function handleInteraction(interaction, context) {
   if (
     !handled
     && (interaction.isButton() || interaction.isRoleSelectMenu()
-      || interaction.isChannelSelectMenu() || interaction.isModalSubmit())
+      || interaction.isChannelSelectMenu() || interaction.isStringSelectMenu()
+      || interaction.isModalSubmit())
   ) {
     await replyV2(interaction, 'Este componente não está mais disponível. Abra o painel novamente.', { ephemeral: true });
   }

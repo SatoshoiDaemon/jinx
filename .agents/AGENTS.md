@@ -4,7 +4,7 @@
 
 Jinx é um bot JavaScript para uma comunidade do Discord, inicialmente em uma guilda. O TDR-Bot é apenas uma referência conceitual antiga: não faça fork, migração nem cópia de código, estrutura ou banco de dados.
 
-O escopo implementado nesta fase é comandos slash, níveis e XP, perfil Discord e configurações pelo painel no Discord. Não trate o projeto como SaaS, empresa, API genérica ou backend de propósito geral. Não crie servidor HTTP, comandos por prefixo, IA ou funcionalidades não solicitadas.
+O escopo implementado nesta fase é comandos slash, rolagem de dados por mensagem, níveis e XP, perfil Discord e configurações pelo painel no Discord. O bot é privado e opera exclusivamente na guilda identificada por `GUILD_ID`; não trate o projeto como SaaS, bot público, multi-guilda, empresa, API genérica ou backend de propósito geral. Não crie servidor HTTP, comandos por prefixo, IA ou funcionalidades não solicitadas.
 
 ## Stack e arquitetura
 
@@ -24,7 +24,8 @@ O escopo implementado nesta fase é comandos slash, níveis e XP, perfil Discord
 
 ## Discord
 
-- Use somente comandos slash nesta fase e os intents necessários às funcionalidades implementadas. A concessão de XP usa o evento de mensagem sem ler seu conteúdo; não solicite Message Content Intent.
+- Use comandos slash e o evento de mensagem apenas para XP e expressões de dados. Valide `GUILD_ID` na entrada dos eventos e interações; não espalhe verificações por cada comando.
+- O intent privilegiado `MessageContent` é necessário para a rolagem de dados por mensagem. Mantenha-o habilitado no cliente e documente a ativação no Discord Developer Portal.
 - Todas as mensagens destinadas aos membros devem usar Components V2. Não use `EmbedBuilder` nem misture embeds tradicionais com Components V2.
 - Responda ou adie interações dentro do prazo do Discord. Componentes persistentes devem consultar o estado MongoDB e validar novamente a guilda, a pessoa e as permissões após cada reinício.
 - Restrinja configurações e ajustes administrativos à permissão adequada e valide-a também no handler.
@@ -32,6 +33,7 @@ O escopo implementado nesta fase é comandos slash, níveis e XP, perfil Discord
 ## MongoDB e Square Cloud
 
 - Use o driver oficial `mongodb`; não adicione ODM sem necessidade concreta.
+- Mantenha as configurações em um único documento global `_id: "jinx:config"`. XP de membro usa o ID de usuário e não precisa de `guildId` no documento.
 - A conexão MongoDB da Square Cloud usa TLS mútuo. Com o arquivo combinado `certs/certificate.pem`, defina `tls: true` e use o mesmo caminho em `tlsCAFile` e `tlsCertificateKeyFile`.
 - Nunca leia, imprima, registre ou versione valores de `.env` ou o conteúdo de certificados.
 - `.env`, `certs/` e `dist/` ficam ignorados pelo Git. Essa exclusão do Git não se aplica ao ZIP inicial da Square Cloud: o empacotador local deve incluir `.env` e `certs/certificate.pem` na raiz e no caminho esperados pelo runtime.

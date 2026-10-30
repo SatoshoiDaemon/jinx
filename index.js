@@ -10,7 +10,11 @@ async function startBot() {
   const config = loadConfig();
   const { client: mongoClient, database } = await connectDatabase(config);
   const discordClient = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent,
+    ],
   });
   const context = { database, guildId: config.guildId };
 

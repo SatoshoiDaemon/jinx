@@ -3,6 +3,10 @@ import { DICE_LIMITS } from '../../config/defaults.js';
 
 const DICE_EXPRESSION = /^(\d+)d(\d+)([+-]\d+)?$/i;
 
+export function isDiceExpression(expression) {
+  return DICE_EXPRESSION.test(expression);
+}
+
 export function rollDice(expression) {
   const match = DICE_EXPRESSION.exec(expression);
   if (!match) {

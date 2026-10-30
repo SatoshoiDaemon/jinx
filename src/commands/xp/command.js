@@ -53,7 +53,7 @@ export default {
     const amount = interaction.options.getInteger('quantidade');
     await replyV2(interaction, 'Aplicando o ajuste de XP…', { ephemeral: true });
     try {
-      const updated = await adjustMemberXp(context.database, context.guildId, member.id, direction, amount);
+      const updated = await adjustMemberXp(context.database, member.id, direction, amount);
       const actionText = direction === 'add' ? 'adicionado' : 'removido';
       await editReplyV2(
         interaction,

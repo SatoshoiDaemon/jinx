@@ -62,7 +62,7 @@ export default {
     if (action === 'consultar') {
       const member = interaction.options.getUser('membro') ?? interaction.user;
       await replyV2(interaction, 'Consultando o nível…');
-      const progress = await getMemberProgress(context.database, context.guildId, member.id);
+      const progress = await getMemberProgress(context.database, member.id);
       await editReplyV2(interaction, renderProgress(member.globalName ?? member.username, progress));
       return;
     }
@@ -79,7 +79,6 @@ export default {
     try {
       const adjusted = await adjustMemberLevels(
         context.database,
-        context.guildId,
         member.id,
         direction * amount,
       );

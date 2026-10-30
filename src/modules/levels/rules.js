@@ -86,7 +86,7 @@ export function adjustedTotalXpForLevels(totalXp, levelDelta, settings) {
   return { level: targetLevel, totalXp: adjustedTotalXp };
 }
 
-export function validateGuildSettings(values) {
+export function validateLevelSettings(values) {
   const fields = ['xpBase', 'xpStep', 'xpMin', 'xpMax', 'cooldownSeconds'];
   const settings = {};
   for (const field of fields) {

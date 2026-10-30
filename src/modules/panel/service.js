@@ -1,15 +1,24 @@
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
-import { getGuildConfig, saveGuildBoost, saveGuildSettings } from '../../models/guild-config.js';
-import { editReplyV2, replyV2 } from '../common/components-v2.js';
-import { validateGuildSettings } from '../levels/rules.js';
-import { buildBoostLimitModal, buildBoostModal, buildSettingsModal } from './components.js';
+import { DEFAULT_LEVEL_SETTINGS } from '../../config/defaults.js';
+import {
+  getModuleConfig,
+  removeModuleConfigValue,
+  updateModuleConfig,
+  updateModuleConfigValue,
+} from '../../models/bot-config.js';
+import { editReplyV2, replyV2, v2EditPayload } from '../common/components-v2.js';
+import { validateLevelSettings } from '../levels/rules.js';
+import {
+  buildBoostLimitModal,
+  buildBoostModal,
+  buildPanelRows,
+  buildSettingsModal,
+  PANEL_CATEGORIES,
+  renderPanelContent,
+} from './components.js';
 
 function hasPanelPermission(interaction) {
   return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
-}
-
-function isConfiguredGuild(interaction, guildId) {
-  return interaction.inGuild() && interaction.guildId === guildId;
 }
 
 function parseMultiplier(value) {
@@ -24,21 +33,38 @@ function parseMultiplier(value) {
   return multiplier;
 }
 
+async function showCategory(interaction, database, category) {
+  if (!PANEL_CATEGORIES.some((item) => item.id === category)) {
+    await replyV2(interaction, 'Esta categoria do painel não está disponível.', { ephemeral: true });
+    return;
+  }
+
+  const settings = category === 'levels'
+    ? await getModuleConfig(database, 'levels', DEFAULT_LEVEL_SETTINGS)
+    : undefined;
+  await interaction.update(v2EditPayload(
+    renderPanelContent(category, settings),
+    { rows: buildPanelRows(category) },
+  ));
+}
+
 export async function handlePanelInteraction(interaction, context) {
   if (
     !interaction.customId?.startsWith('panel:')
     || (!interaction.isButton() && !interaction.isRoleSelectMenu()
-      && !interaction.isChannelSelectMenu() && !interaction.isModalSubmit())
+      && !interaction.isChannelSelectMenu() && !interaction.isStringSelectMenu()
+      && !interaction.isModalSubmit())
   ) {
     return false;
   }
 
-  if (!isConfiguredGuild(interaction, context.guildId)) {
-    await replyV2(interaction, 'Este painel só funciona na guilda configurada.', { ephemeral: true });
-    return true;
-  }
   if (!hasPanelPermission(interaction)) {
     await replyV2(interaction, 'Você precisa da permissão **Gerenciar servidor** para usar este painel.', { ephemeral: true });
+    return true;
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === 'panel:category') {
+    await showCategory(interaction, context.database, interaction.values[0]);
     return true;
   }
 
@@ -64,11 +90,11 @@ export async function handlePanelInteraction(interaction, context) {
 
   if (interaction.isModalSubmit() && interaction.customId === 'panel:modal:settings') {
     await replyV2(interaction, 'Salvando as configurações…', { ephemeral: true });
-    const current = await getGuildConfig(context.database, context.guildId);
+    const current = await getModuleConfig(context.database, 'levels', DEFAULT_LEVEL_SETTINGS);
     const fields = interaction.fields;
     let settings;
     try {
-      settings = validateGuildSettings({
+      settings = validateLevelSettings({
         xpBase: fields.getTextInputValue('xpBase').trim() || current.xpBase,
         xpStep: fields.getTextInputValue('xpStep').trim() || current.xpStep,
         xpMin: fields.getTextInputValue('xpMin').trim() || current.xpMin,
@@ -87,17 +113,17 @@ export async function handlePanelInteraction(interaction, context) {
       );
       return true;
     }
-    await saveGuildSettings(context.database, context.guildId, settings);
-    await editReplyV2(interaction, 'Configurações de XP atualizadas.', { ephemeral: true });
+    await updateModuleConfig(context.database, 'levels', settings);
+    await editReplyV2(interaction, 'Configurações de níveis e XP atualizadas.', { ephemeral: true });
     return true;
   }
 
   if (interaction.isModalSubmit() && interaction.customId === 'panel:modal:boost-limit') {
     await replyV2(interaction, 'Salvando o limite de boosts…', { ephemeral: true });
-    const current = await getGuildConfig(context.database, context.guildId);
+    const current = await getModuleConfig(context.database, 'levels', DEFAULT_LEVEL_SETTINGS);
     let settings;
     try {
-      settings = validateGuildSettings({
+      settings = validateLevelSettings({
         ...current,
         maxBoostMultiplier: interaction.fields.getTextInputValue('maxBoostMultiplier').trim()
           || current.maxBoostMultiplier,
@@ -109,7 +135,7 @@ export async function handlePanelInteraction(interaction, context) {
       await editReplyV2(interaction, 'O limite precisa ser um número igual ou maior que 1.', { ephemeral: true });
       return true;
     }
-    await saveGuildSettings(context.database, context.guildId, settings);
+    await updateModuleConfig(context.database, 'levels', settings);
     await editReplyV2(interaction, 'Limite de boosts atualizado.', { ephemeral: true });
     return true;
   }
@@ -130,7 +156,7 @@ export async function handlePanelInteraction(interaction, context) {
       return true;
     }
     await replyV2(interaction, 'Validando o boost…', { ephemeral: true });
-    const settings = await getGuildConfig(context.database, context.guildId);
+    const settings = await getModuleConfig(context.database, 'levels', DEFAULT_LEVEL_SETTINGS);
     const target = kind === 'role'
       ? interaction.guild.roles.cache.get(targetId)
       : interaction.guild.channels.cache.get(targetId);
@@ -150,13 +176,12 @@ export async function handlePanelInteraction(interaction, context) {
       return true;
     }
 
-    await saveGuildBoost(
-      context.database,
-      context.guildId,
-      kind,
-      targetId,
-      multiplier === 0 ? null : multiplier,
-    );
+    const setting = kind === 'role' ? 'roleBoosts' : 'channelBoosts';
+    if (multiplier === 0) {
+      await removeModuleConfigValue(context.database, 'levels', `${setting}.${targetId}`);
+    } else {
+      await updateModuleConfigValue(context.database, 'levels', `${setting}.${targetId}`, multiplier);
+    }
     const targetType = kind === 'role' ? 'cargo' : 'canal';
     const result = multiplier === 0
       ? `Boost removido do ${targetType}.`
