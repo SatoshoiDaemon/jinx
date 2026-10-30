@@ -2,6 +2,7 @@ import {
   BOT_CONFIG_COLLECTION,
   BOT_CONFIG_ID,
   DEFAULT_LEVEL_SETTINGS,
+  DEFAULT_WELCOME_SETTINGS,
 } from '../config/defaults.js';
 
 function readLegacyLevelSettings(document) {
@@ -32,7 +33,10 @@ async function migrateLegacyConfig(database, guildId) {
     { _id: BOT_CONFIG_ID },
     {
       $setOnInsert: {
-        modules: { levels: readLegacyLevelSettings(legacyDocument) },
+        modules: {
+          levels: readLegacyLevelSettings(legacyDocument),
+          welcome: DEFAULT_WELCOME_SETTINGS,
+        },
         createdAt,
         ...(legacyDocument?.updatedAt ? { updatedAt: legacyDocument.updatedAt } : {}),
       },

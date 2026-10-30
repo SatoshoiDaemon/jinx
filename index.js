@@ -5,6 +5,7 @@ import { initializeDatabase } from './src/database/initialize.js';
 import { registerGuildCommands } from './src/commands/register.js';
 import { registerInteractionCreate } from './src/events/interaction-create.js';
 import { registerMessageCreate } from './src/events/message-create.js';
+import { registerGuildMemberAdd } from './src/events/guild-member-add.js';
 
 async function startBot() {
   const config = loadConfig();
@@ -12,6 +13,7 @@ async function startBot() {
   const discordClient = new Client({
     intents: [
       GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
     ],
@@ -21,6 +23,7 @@ async function startBot() {
   try {
     await initializeDatabase(database, config.guildId);
     registerMessageCreate(discordClient, context);
+    registerGuildMemberAdd(discordClient, context);
     registerInteractionCreate(discordClient, context);
     discordClient.once(Events.ClientReady, (readyClient) => {
       console.info(`[Discord] Bot conectado como ${readyClient.user.tag}.`);

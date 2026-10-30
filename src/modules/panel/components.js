@@ -10,26 +10,126 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
+import { DEFAULT_WELCOME_SETTINGS } from '../../config/defaults.js';
+import { WELCOME_PLACEHOLDERS } from '../welcome/placeholders.js';
 
 export const PANEL_CATEGORIES = Object.freeze([
   { id: 'levels', label: 'Níveis e economia', description: 'XP, progressão e boosts' },
   { id: 'tickets', label: 'Tickets e atendimento', description: 'Indisponível no momento' },
-  { id: 'welcome', label: 'Boas-vindas — mensagens públicas', description: 'Indisponível no momento' },
+  { id: 'welcome', label: 'Boas-vindas', description: 'Cargos iniciais e mensagens de entrada' },
   { id: 'suggestions', label: 'Sugestões', description: 'Indisponível no momento' },
   { id: 'profile', label: 'Destaque de perfis', description: 'Indisponível no momento' },
-  { id: 'member_entry', label: 'Entrada de membros — mensagens privadas e cargos iniciais', description: 'Indisponível no momento' },
   { id: 'core', label: 'Núcleo do bot — utilitários e configurações gerais', description: 'Utilitários; opções de ajuste indisponíveis' },
 ]);
 
-export function renderPanelContent(category, settings) {
+const WELCOME_SECTIONS = Object.freeze([
+  { id: 'overview', label: 'Visão geral', description: 'Estado das três funcionalidades' },
+  { id: 'roles', label: 'Cargos iniciais', description: 'Atribuição automática de cargos' },
+  { id: 'dm', label: 'Mensagem privada', description: 'DM enviada ao novo membro' },
+  { id: 'public', label: 'Mensagem pública', description: 'Mensagem temporária em um canal' },
+  { id: 'placeholders', label: 'Placeholders', description: 'Variáveis disponíveis nas mensagens' },
+]);
+
+function enabledText(enabled) {
+  return enabled ? 'Ativada' : 'Desativada';
+}
+
+function configuredRolesText(settings, guild) {
+  if (settings.initialRoles.roleIds.length === 0) {
+    return 'Nenhum cargo selecionado.';
+  }
+
+  return settings.initialRoles.roleIds.map((roleId) => {
+    const role = guild?.roles.cache.get(roleId);
+    return role
+      ? `• ${role.name} — \`${role.id}\``
+      : `• Cargo indisponível — \`${roleId}\``;
+  }).join('\n');
+}
+
+function configuredChannelText(settings, guild) {
+  const channelId = settings.publicMessage.channelId;
+  if (!channelId) {
+    return 'Nenhum canal selecionado.';
+  }
+  const channel = guild?.channels.cache.get(channelId);
+  return channel
+    ? `#${channel.name} — \`${channel.id}\``
+    : `Canal indisponível — \`${channelId}\``;
+}
+
+function renderWelcomeContent(settings, guild, section) {
+  if (section === 'roles') {
+    return [
+      '## Boas-vindas — cargos iniciais',
+      '',
+      `**Estado:** ${enabledText(settings.initialRoles.enabled)}`,
+      '**Cargos configurados:**',
+      configuredRolesText(settings, guild),
+      '',
+      'Selecione um ou mais cargos para substituir a lista atual. O Jinx ignora cargos removidos, gerenciados ou acima do cargo mais alto do bot.',
+    ].join('\n');
+  }
+
+  if (section === 'dm') {
+    return [
+      '## Boas-vindas — mensagem privada',
+      '',
+      `**Estado:** ${enabledText(settings.directMessage.enabled)}`,
+      '**Mensagem configurada:**',
+      settings.directMessage.content || DEFAULT_WELCOME_SETTINGS.directMessage.content,
+      '',
+      'A prévia é enviada por DM para você. Se um membro bloquear DMs, as demais ações continuam normalmente.',
+    ].join('\n');
+  }
+
+  if (section === 'public') {
+    return [
+      '## Boas-vindas — mensagem pública',
+      '',
+      `**Estado:** ${enabledText(settings.publicMessage.enabled)}`,
+      `**Canal:** ${configuredChannelText(settings, guild)}`,
+      '**Mensagem configurada:**',
+      settings.publicMessage.content || DEFAULT_WELCOME_SETTINGS.publicMessage.content,
+      '',
+      'A mensagem é removida 5 segundos após o envio. O teste também cria uma mensagem temporária.',
+    ].join('\n');
+  }
+
+  if (section === 'placeholders') {
+    return [
+      '## Boas-vindas — placeholders',
+      '',
+      'Use estas variáveis nas mensagens privadas e públicas. Datas são exibidas em português, no horário UTC.',
+      ...WELCOME_PLACEHOLDERS.map(({ placeholder, description }) => `• \`${placeholder}\` — ${description}`),
+      '',
+      'Placeholders desconhecidos permanecem no texto. Menções são limitadas ao membro correspondente; `@everyone` e `@here` não notificam o servidor.',
+    ].join('\n');
+  }
+
+  return [
+    '## Boas-vindas',
+    '',
+    'Configure cada ação de entrada de forma independente. As alterações são salvas no MongoDB e entram em vigor imediatamente.',
+    '',
+    `**Cargos iniciais:** ${enabledText(settings.initialRoles.enabled)} (${settings.initialRoles.roleIds.length} selecionado(s))`,
+    `**Mensagem privada:** ${enabledText(settings.directMessage.enabled)}`,
+    `**Mensagem pública:** ${enabledText(settings.publicMessage.enabled)}`,
+    `**Canal público:** ${configuredChannelText(settings, guild)}`,
+    '',
+    'Escolha uma seção no menu para ver suas configurações e controles.',
+  ].join('\n');
+}
+
+export function renderPanelContent(category, settings, guild, welcomeSection = 'overview') {
   if (category === 'home') {
     return [
       '## Painel de administração — Jinx',
       '',
       'Escolha uma categoria no menu para abrir suas opções.',
       '',
-      '**Disponível:** níveis e boosts de XP; comandos utilitários.',
-      '**Em preparação:** economia, tickets, boas-vindas, sugestões, destaque de perfis, entrada de membros e configurações gerais.',
+      '**Disponível:** níveis e boosts de XP, boas-vindas e comandos utilitários.',
+      '**Em preparação:** economia, tickets, sugestões e destaque de perfis.',
     ].join('\n');
   }
 
@@ -46,6 +146,10 @@ export function renderPanelContent(category, settings) {
       '',
       'Use os controles abaixo para ajustar níveis e boosts. A economia ainda não está disponível.',
     ].join('\n');
+  }
+
+  if (category === 'welcome') {
+    return renderWelcomeContent(settings, guild, welcomeSection);
   }
 
   const selected = PANEL_CATEGORIES.find((item) => item.id === category);
@@ -68,7 +172,7 @@ export function renderPanelContent(category, settings) {
   ].join('\n');
 }
 
-export function buildPanelRows(category = 'home') {
+function categorySelectRow() {
   const categorySelect = new StringSelectMenuBuilder()
     .setCustomId('panel:category')
     .setPlaceholder('Escolha uma categoria')
@@ -79,20 +183,99 @@ export function buildPanelRows(category = 'home') {
       value: item.id,
       description: item.description,
     })));
-  const rows = [new ActionRowBuilder().addComponents(categorySelect)];
+  return new ActionRowBuilder().addComponents(categorySelect);
+}
+
+function button(customId, label, style = ButtonStyle.Secondary) {
+  return new ButtonBuilder().setCustomId(customId).setLabel(label).setStyle(style);
+}
+
+function welcomeRows(section, settings) {
+  const sectionSelect = new StringSelectMenuBuilder()
+    .setCustomId('panel:welcome:section')
+    .setPlaceholder('Escolha uma seção de boas-vindas')
+    .setMinValues(1)
+    .setMaxValues(1)
+    .addOptions(WELCOME_SECTIONS.map((item) => ({
+      label: item.label,
+      value: item.id,
+      description: item.description,
+      default: item.id === section,
+    })));
+  const rows = [new ActionRowBuilder().addComponents(sectionSelect)];
+
+  if (section === 'roles') {
+    rows.push(new ActionRowBuilder().addComponents(
+      new RoleSelectMenuBuilder()
+        .setCustomId('panel:welcome:roles:select')
+        .setPlaceholder('Selecione cargos para substituir a lista atual')
+        .setMinValues(1)
+        .setMaxValues(25),
+    ));
+    rows.push(new ActionRowBuilder().addComponents(
+      button(
+        'panel:welcome:initialRoles:toggle',
+        settings?.initialRoles.enabled ? 'Desativar cargos' : 'Ativar cargos',
+        ButtonStyle.Primary,
+      ),
+      button('panel:welcome:roles:clear', 'Remover todos os cargos', ButtonStyle.Danger),
+    ));
+  }
+
+  if (section === 'dm') {
+    rows.push(new ActionRowBuilder().addComponents(
+      button(
+        'panel:welcome:directMessage:toggle',
+        settings?.directMessage.enabled ? 'Desativar DM' : 'Ativar DM',
+        ButtonStyle.Primary,
+      ),
+      button('panel:welcome:dm:edit', 'Editar mensagem'),
+      button('panel:welcome:dm:preview', 'Enviar prévia'),
+      button('panel:welcome:dm:reset', 'Restaurar padrão', ButtonStyle.Secondary),
+    ));
+  }
+
+  if (section === 'public') {
+    rows.push(new ActionRowBuilder().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId('panel:welcome:public:channel')
+        .setPlaceholder('Selecione o canal de boas-vindas')
+        .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+        .setMinValues(1)
+        .setMaxValues(1),
+    ));
+    rows.push(new ActionRowBuilder().addComponents(
+      button(
+        'panel:welcome:publicMessage:toggle',
+        settings?.publicMessage.enabled ? 'Desativar mensagem' : 'Ativar mensagem',
+        ButtonStyle.Primary,
+      ),
+      button('panel:welcome:public:edit', 'Editar mensagem'),
+      button('panel:welcome:public:test', 'Testar mensagem'),
+      button('panel:welcome:public:reset', 'Restaurar padrão'),
+      button('panel:welcome:public:channel:clear', 'Remover canal', ButtonStyle.Danger),
+    ));
+  }
+
+  return rows;
+}
+
+export function buildPanelRows(category = 'home', welcomeSection = 'overview', welcomeSettings) {
+  const rows = [categorySelectRow()];
+
+  if (category === 'welcome') {
+    const section = WELCOME_SECTIONS.some((item) => item.id === welcomeSection)
+      ? welcomeSection
+      : 'overview';
+    return [...rows, ...welcomeRows(section, welcomeSettings)];
+  }
 
   if (category !== 'levels') {
     return rows;
   }
 
-  const settingsButton = new ButtonBuilder()
-    .setCustomId('panel:settings')
-    .setLabel('Ajustar níveis e XP')
-    .setStyle(ButtonStyle.Primary);
-  const boostLimitButton = new ButtonBuilder()
-    .setCustomId('panel:boost-limit')
-    .setLabel('Limite de boosts')
-    .setStyle(ButtonStyle.Secondary);
+  const settingsButton = button('panel:settings', 'Ajustar níveis e XP', ButtonStyle.Primary);
+  const boostLimitButton = button('panel:boost-limit', 'Limite de boosts');
   const roleSelect = new RoleSelectMenuBuilder()
     .setCustomId('panel:role')
     .setPlaceholder('Escolha um cargo para configurar o boost')
@@ -167,4 +350,21 @@ export function buildBoostModal(kind, targetId) {
     .setCustomId(`panel:modal:${kind}:${targetId}`)
     .setTitle(`Configurar boost de ${label}`)
     .addComponents(new ActionRowBuilder().addComponents(input));
+}
+
+export function buildWelcomeMessageModal(kind, content) {
+  const isDm = kind === 'dm';
+  const message = new TextInputBuilder()
+    .setCustomId('content')
+    .setLabel(isDm ? 'Mensagem privada' : 'Mensagem pública')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Escreva a mensagem e use os placeholders disponíveis')
+    .setRequired(true)
+    .setMaxLength(2000)
+    .setValue(content.slice(0, 2000));
+
+  return new ModalBuilder()
+    .setCustomId(`panel:welcome:${kind}:modal`)
+    .setTitle(isDm ? 'Editar mensagem privada' : 'Editar mensagem pública')
+    .addComponents(new ActionRowBuilder().addComponents(message));
 }

@@ -2,6 +2,7 @@ import {
   BOT_CONFIG_COLLECTION,
   BOT_CONFIG_ID,
   DEFAULT_LEVEL_SETTINGS,
+  DEFAULT_WELCOME_SETTINGS,
 } from '../config/defaults.js';
 
 function configCollection(database) {
@@ -24,7 +25,10 @@ export async function ensureBotConfig(database) {
     { _id: BOT_CONFIG_ID },
     {
       $setOnInsert: {
-        modules: { levels: { ...DEFAULT_LEVEL_SETTINGS } },
+        modules: {
+          levels: { ...DEFAULT_LEVEL_SETTINGS },
+          welcome: DEFAULT_WELCOME_SETTINGS,
+        },
         createdAt: new Date(),
       },
     },

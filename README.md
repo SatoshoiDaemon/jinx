@@ -20,7 +20,7 @@ Inicie o bot com:
 npm start
 ```
 
-Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de `GUILD_ID` e conecta ao Gateway do Discord. No Discord Developer Portal, habilite os intents `Guilds`, `Guild Messages` e o intent privilegiado `Message Content` em **Bot → Privileged Gateway Intents**. O último é necessário para reconhecer expressões de dados enviadas como mensagens. Conceda ao bot acesso aos canais e permissão para responder e usar comandos. Pessoas que alteram configurações precisam de `Gerenciar servidor`.
+Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de `GUILD_ID` e conecta ao Gateway do Discord. No Discord Developer Portal, habilite os intents `Guilds`, `Guild Members`, `Guild Messages` e o intent privilegiado `Message Content` em **Bot → Privileged Gateway Intents**. Ative também **Server Members Intent** (`Guild Members`), necessário para o evento `guildMemberAdd` e as boas-vindas. `Message Content` é necessário para reconhecer expressões de dados enviadas como mensagens. Conceda ao bot acesso aos canais e permissão para responder e usar comandos. Pessoas que alteram configurações precisam de `Gerenciar servidor`.
 
 ## Comandos e utilitários
 
@@ -31,7 +31,28 @@ Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de 
 - `/nivel adicionar` e `/nivel remover`: ajuste administrativo de níveis.
 - `/xp adicionar` e `/xp remover`: ajuste administrativo de XP.
 - `/perfil [membro]`: exibe informações básicas do perfil e o banner público, quando disponível.
-- `/painel`: abre o centro administrativo, organizado em níveis e economia, tickets, boas-vindas públicas, sugestões, destaque de perfis, entrada de membros e núcleo do bot. Nesta etapa, os controles ativos são os de níveis e boosts; as demais funções são indicadas como indisponíveis até serem implementadas.
+- `/painel`: abre o centro administrativo com controles de níveis e XP e a categoria **Boas-vindas**. As demais categorias ainda estão em preparação.
+
+## Boas-vindas
+
+Toda a configuração é feita em `/painel` → **Boas-vindas**. As páginas **Cargos iniciais**, **Mensagem privada** e **Mensagem pública** permitem ativar cada ação de forma independente. Os cargos são escolhidos por Role Select Menu; a mensagem pública usa Channel Select Menu. As mensagens podem ser editadas em modal, restauradas ao padrão e visualizadas/testadas pelo próprio painel. A mensagem pública de teste também é removida após 5 segundos.
+
+As três ações começam desativadas. Para atribuir cargos, o bot precisa de `Gerenciar cargos`, e o cargo mais alto do bot precisa estar acima de cada cargo inicial selecionado. Para a mensagem pública, conceda ao bot `Ver canal` e `Enviar mensagens` no canal escolhido. A DM é enviada diretamente ao membro; se as DMs estiverem fechadas, a falha não afeta os cargos nem a mensagem pública.
+
+As mensagens aceitam os placeholders abaixo. Datas são exibidas em português, usando UTC. Placeholders desconhecidos permanecem no texto. Menções são limitadas ao membro da mensagem, então `@everyone` e `@here` não notificam o servidor.
+
+| Placeholder | Resultado |
+| --- | --- |
+| `{user.id}` | ID do membro |
+| `{user.name}` | Nome de usuário |
+| `{user.displayName}` | Nome de exibição no servidor |
+| `{user.mention}` | Menção ao membro |
+| `{user.createdAt}` | Data de criação da conta |
+| `{guild.id}` | ID do servidor |
+| `{guild.name}` | Nome do servidor |
+| `{guild.memberCount}` | Quantidade atual de membros |
+| `{guild.ownerId}` | ID do proprietário |
+| `{guild.createdAt}` | Data de criação do servidor |
 
 O XP total é a fonte de verdade. A pessoa começa no nível 1; o XP necessário para passar do nível `L` é `xpBase + L * xpStep`. O progresso atual é preservado ao ajustar níveis, limitado ao espaço disponível no nível de destino. Ao conceder XP em excesso, todos os níveis atingidos são calculados a partir do total.
 
@@ -41,7 +62,9 @@ Se vários cargos da pessoa tiverem boosts, vale o maior deles (ou 1 se nenhum s
 
 ## Dados e configurações
 
-As configurações ativas ficam no documento global `_id: "jinx:config"`, na coleção `bot_config`, agrupadas por módulo. O XP dos membros é armazenado por ID de usuário, sem `guildId` no documento.
+As configurações ativas ficam no documento global `_id: "jinx:config"`, na coleção `bot_config`, agrupadas por módulo. As boas-vindas ficam em `modules.welcome`; o Jinx não cria configurações por guilda. O XP dos membros é armazenado por ID de usuário, sem `guildId` no documento.
+
+O módulo guarda `initialRoles: { enabled, roleIds }`, `directMessage: { enabled, content }` e `publicMessage: { enabled, channelId, content }`. Os três recursos começam desativados; a duração de 5 segundos da mensagem pública é fixa e não é uma opção persistida.
 
 Na primeira inicialização após esta versão, uma adaptação idempotente copia as configurações da guilda de `GUILD_ID` para `jinx:config`, converte os registros de XP dessa guilda preservando XP e timestamps e remove o índice composto antigo. Os documentos legados só são removidos após a cópia correspondente. A conexão MongoDB continua usando TLS mútuo.
 
