@@ -30,7 +30,7 @@ import {
   ticketControlMessagePayload,
   ticketResolveConfirmationRows,
   ticketUserSelectRow,
-  isValidTicketEmoji,
+  normalizeTicketEmoji,
 } from './components.js';
 import { createTranscriptHtml, fetchAllThreadMessages } from './transcript.js';
 
@@ -326,7 +326,7 @@ export async function publishTicketPanel(panelId, context) {
     const activeOptions = (panel.options ?? []).filter((option) => option.active !== false);
     const invalidOptionNumbers = activeOptions
       .map((option, index) => ({ option, index }))
-      .filter(({ option }) => option.emoji && !isValidTicketEmoji(option.emoji))
+      .filter(({ option }) => option.emoji && normalizeTicketEmoji(option.emoji) === null)
       .map(({ index }) => index + 1);
     if (invalidOptionNumbers.length) {
       const error = new TicketFlowError('PANEL_OPTION_EMOJI_INVALID');

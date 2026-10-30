@@ -13,7 +13,7 @@ import {
   buildTicketOptionSettingsModal,
   buildTicketPanelModal,
   buildTicketSettingsModal,
-  isValidTicketEmoji,
+  normalizeTicketEmoji,
   ticketPanelConfirmationRows,
 } from './components.js';
 import {
@@ -136,18 +136,20 @@ function validatePanelText({ name, title, description, message, imageUrls }) {
 }
 
 function validateEmoji(emoji, label) {
-  if (!emoji) return;
-  if (!isValidTicketEmoji(emoji)) throw new Error('OPTION_EMOJI_INVALID');
+  const normalized = normalizeTicketEmoji(emoji);
+  if (normalized === null) throw new Error('OPTION_EMOJI_INVALID');
+  if (!normalized) return '';
   try {
     new ButtonBuilder()
       .setCustomId('ticket:emoji-check')
       .setLabel(label.slice(0, 80) || 'Opção')
       .setStyle(ButtonStyle.Primary)
-      .setEmoji(emoji)
+      .setEmoji(normalized)
       .toJSON();
   } catch {
     throw new Error('OPTION_EMOJI_INVALID');
   }
+  return normalized;
 }
 
 function panelFromModal(interaction) {
@@ -294,7 +296,7 @@ async function handlePanelModal(interaction, context) {
     try {
       const label = interaction.fields.getTextInputValue('label').trim();
       const description = interaction.fields.getTextInputValue('description').trim();
-      const emoji = interaction.fields.getTextInputValue('emoji').trim();
+      const rawEmoji = interaction.fields.getTextInputValue('emoji').trim();
       const action = interaction.fields.getTextInputValue('action').trim().toLowerCase();
       const responseText = interaction.fields.getTextInputValue('response').trim();
       if (!label || label.length > 80 || description.length > 100 || !['ticket', 'reply'].includes(action)) {
@@ -302,7 +304,7 @@ async function handlePanelModal(interaction, context) {
       }
       if (action === 'reply' && !responseText) throw new Error('OPTION_REPLY_REQUIRED');
       if (responseText.length > 1800) throw new Error('OPTION_INVALID');
-      validateEmoji(emoji, label);
+      const emoji = validateEmoji(rawEmoji, label);
       let options;
       if (optionId === 'new') {
         if (panel.options.length >= 25) throw new Error('OPTION_LIMIT');

@@ -24,20 +24,36 @@ try {
   // Older supported Node builds can lack Unicode string properties.
 }
 
-export function isValidTicketEmoji(value) {
+function isUnicodeRgiEmoji(value) {
+  if (RGI_EMOJI_PATTERN) return RGI_EMOJI_PATTERN.test(value);
+
+  const graphemes = [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(value)];
+  if (/^[#*0-9]\uFE0F?\u20E3$/u.test(value)) return true;
+  return graphemes.length === 1
+    && /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u.test(value)
+    && !/[\p{Letter}\p{Number}\p{White_Space}]/u.test(value);
+}
+
+export function normalizeTicketEmoji(value) {
   const input = String(value ?? '').trim();
-  if (!input) return true;
+  if (!input) return '';
 
   const emoji = parseEmoji(input);
-  if (!emoji?.name) return false;
-  if (emoji.id) return /^\d{17,20}$/u.test(emoji.id);
-  if (RGI_EMOJI_PATTERN) return RGI_EMOJI_PATTERN.test(emoji.name);
-  if (/^[#*0-9]\uFE0F?\u20E3$/u.test(emoji.name)) return true;
+  if (!emoji?.name) return null;
+  if (emoji.id) return /^\d{17,20}$/u.test(emoji.id) ? input : null;
+  if (isUnicodeRgiEmoji(emoji.name)) return emoji.name;
 
-  const graphemes = [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(emoji.name)];
-  return graphemes.length === 1
-    && /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u.test(emoji.name)
-    && !/[\p{Letter}\p{Number}\p{White_Space}]/u.test(emoji.name);
+  // Some mobile keyboards append U+FE0F even when the base emoji already
+  // defaults to emoji presentation. Accept that input when removing the
+  // redundant selector yields exactly one recognized Unicode emoji.
+  const withoutVariationSelectors = emoji.name.replace(/\uFE0F/gu, '');
+  return withoutVariationSelectors !== emoji.name && isUnicodeRgiEmoji(withoutVariationSelectors)
+    ? withoutVariationSelectors
+    : null;
+}
+
+export function isValidTicketEmoji(value) {
+  return normalizeTicketEmoji(value) !== null;
 }
 
 function textInput(customId, label, value, {
@@ -194,7 +210,7 @@ export function buildPublishedPanelPayload(panel, systemEnabled) {
         label: option.label,
         value: option.id,
         ...(option.description ? { description: option.description } : {}),
-        ...(option.emoji ? { emoji: option.emoji } : {}),
+        ...(option.emoji ? { emoji: normalizeTicketEmoji(option.emoji) } : {}),
       })));
     container.addActionRowComponents(new ActionRowBuilder().addComponents(menu));
   } else if (options.length) {
@@ -206,7 +222,7 @@ export function buildPublishedPanelPayload(panel, systemEnabled) {
           ButtonStyle.Primary,
           !active,
         );
-        if (option.emoji) item.setEmoji(option.emoji);
+        if (option.emoji) item.setEmoji(normalizeTicketEmoji(option.emoji));
         return item;
       }));
       container.addActionRowComponents(row);
