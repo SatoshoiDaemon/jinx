@@ -53,8 +53,16 @@ O script valida a presença dos dois arquivos sem abrir ou exibir seus conteúdo
 
 O empacotador usa o utilitário `zip` instalado localmente.
 
-## CI e secrets futuros
+## CI e deploy
 
-O workflow de CI roda em push e pull request, instala dependências e valida sintaxe/configuração. Não acessa secrets e não publica artifacts ou deploys.
+O workflow de CI roda em push e pull request, instala dependências e valida sintaxe/configuração sem acessar secrets.
 
-Uma etapa futura de entrega pode reconstruir os arquivos locais com os secrets `JINX_ENV_FILE_BASE64` e `JINX_MONGODB_CERTIFICATE_PEM_BASE64`, executando `npm run restore:github-secrets` em um runner isolado do GitHub Actions. O script exige `GITHUB_ACTIONS=true`, falha se os arquivos de destino já existirem e não imprime os valores. Base64 é apenas codificação, não criptografia; esses secrets nunca devem aparecer em logs, código ou artifacts públicos. O workflow atual não chama esse script.
+O workflow `squarecloud-deploy.yml` atualiza a aplicação `e663fa87c2c646c5abfeca508851ef62` em push para `main` ou por execução manual nessa branch. Ele valida o projeto, reconstrói `.env` e `certs/certificate.pem` no runner, monta o ZIP e o envia diretamente à Square Cloud, sem publicar artifact.
+
+Configure estes secrets de Actions no repositório:
+
+- `SQUARECLOUD_API_KEY`: chave da API com os escopos `apps:deploy` e `apps:control`.
+- `JINX_ENV_FILE_BASE64`: conteúdo do `.env` codificado em Base64.
+- `JINX_MONGODB_CERTIFICATE_PEM_BASE64`: conteúdo de `certs/certificate.pem` codificado em Base64.
+
+O script `npm run restore:github-secrets` exige `GITHUB_ACTIONS=true`, falha se os arquivos de destino já existirem e não imprime os valores. Base64 é apenas codificação, não criptografia; esses secrets nunca devem aparecer em logs, código ou artifacts públicos.

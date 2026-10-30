@@ -35,8 +35,8 @@ O escopo implementado nesta fase é comandos slash, níveis e XP, perfil Discord
 - A conexão MongoDB da Square Cloud usa TLS mútuo. Com o arquivo combinado `certs/certificate.pem`, defina `tls: true` e use o mesmo caminho em `tlsCAFile` e `tlsCertificateKeyFile`.
 - Nunca leia, imprima, registre ou versione valores de `.env` ou o conteúdo de certificados.
 - `.env`, `certs/` e `dist/` ficam ignorados pelo Git. Essa exclusão do Git não se aplica ao ZIP inicial da Square Cloud: o empacotador local deve incluir `.env` e `certs/certificate.pem` na raiz e no caminho esperados pelo runtime.
-- A CI valida instalação e sintaxe/configuração sem secrets. Não crie deploy remoto nem publique artifact com credenciais nesta fase.
-- Para uma futura reconstrução por GitHub Actions, os nomes previstos são `JINX_ENV_FILE_BASE64` e `JINX_MONGODB_CERTIFICATE_PEM_BASE64`. Base64 é codificação, não criptografia; jamais exponha os valores em código, logs, documentação ou artifacts públicos.
+- A CI valida instalação e sintaxe/configuração sem secrets. O workflow de deploy da Square Cloud pode usar secrets apenas em pushes para `main` ou execução manual nessa branch; envie o ZIP diretamente à API, sem publicar artifacts que contenham credenciais.
+- Os secrets de reconstrução são `JINX_ENV_FILE_BASE64` e `JINX_MONGODB_CERTIFICATE_PEM_BASE64`, além de `SQUARECLOUD_API_KEY` para a API da hospedagem. Base64 é codificação, não criptografia; jamais exponha os valores em código, logs, documentação ou artifacts públicos.
 
 ## Idioma
 

@@ -11,10 +11,14 @@
     "start": "node --env-file-if-exists=.env index.js",
     "check": "node scripts/check-project.js",
     "package:squarecloud": "node scripts/package-squarecloud.js",
+    "deploy:squarecloud": "node scripts/deploy-squarecloud.js",
     "restore:github-secrets": "node scripts/restore-github-secrets.js"
   },
   "dependencies": {
     "discord.js": "14.27.0",
     "mongodb": "7.7.0"
+  },
+  "devDependencies": {
+    "@squarecloud/api": "6.0.0"
   }
 }

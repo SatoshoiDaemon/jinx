@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -49,6 +49,9 @@ if (missingFiles.length || !existsSync(sourceDirectory) || !statSync(sourceDirec
     console.error('Não foi possível montar o ZIP local da Square Cloud.');
     process.exitCode = 1;
   } else {
+    if (process.env.GITHUB_OUTPUT) {
+      appendFileSync(process.env.GITHUB_OUTPUT, `zip_path=${zipPath}\n`);
+    }
     console.info(`ZIP local criado em ${path.relative(root, zipPath)}.`);
   }
 }
