@@ -19,6 +19,7 @@ export const PANEL_CATEGORIES = Object.freeze([
   { id: 'voice_calls', label: 'Calls temporárias', description: 'Calls criadas ao entrar em um canal' },
   { id: 'tickets', label: 'Tickets e atendimento', description: 'Painéis, tópicos privados, logs e transcripts' },
   { id: 'welcome', label: 'Boas-vindas', description: 'Cargos iniciais e mensagens de entrada' },
+  { id: 'riot_updates', label: 'Riot Games — Patch Notes e Updates', description: 'Publicações oficiais de Wild Rift' },
   { id: 'suggestions', label: 'Sugestões', description: 'Indisponível no momento' },
   { id: 'profile', label: 'Destaque de perfis', description: 'Indisponível no momento' },
   { id: 'core', label: 'Núcleo do bot — utilitários e configurações gerais', description: 'Utilitários; opções de ajuste indisponíveis' },
@@ -44,6 +45,13 @@ const ECONOMY_PAGES = Object.freeze([
   { id: 'crime', label: 'Crime fictício', description: 'Chance, recompensa e multa' },
   { id: 'transfers', label: 'Transferências', description: 'Limites de pagamentos' },
   { id: 'games', label: 'Apostas', description: 'Limites, prazos e jogos' },
+]);
+
+const RIOT_PAGES = Object.freeze([
+  { id: 'patchNotes', label: 'Patch Notes', description: 'Balanceamento de campeões, itens, runas e sistemas' },
+  { id: 'updates', label: 'Updates', description: 'Campeões, skins, eventos, passes e modos' },
+  { id: 'scheduler', label: 'Agendamento', description: 'Calendário adaptativo e idiomas' },
+  { id: 'status', label: 'Inspeções e prévias', description: 'Execução manual, publicações e erros' },
 ]);
 
 function enabledText(enabled) {
@@ -216,6 +224,85 @@ function renderEconomyContent(settings, page) {
   ].join('\n');
 }
 
+function channelLabel(channelId, guild) {
+  if (!channelId) return 'não configurado';
+  const channel = guild?.channels.cache.get(channelId);
+  return channel ? `#${channel.name}` : 'canal indisponível';
+}
+
+function roleLabel(roleId, guild) {
+  if (!roleId) return 'não configurado';
+  const role = guild?.roles.cache.get(roleId);
+  return role ? `@${role.name}` : 'cargo indisponível';
+}
+
+function dateLabel(value) {
+  if (!value) return 'nunca';
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'UTC' }).format(date) + ' UTC'
+    : 'não disponível';
+}
+
+function monitorWindowLabel(window) {
+  if (!window?.expectedAt) return 'sem histórico oficial suficiente';
+  return `${dateLabel(window.expectedAt)}; janela ${dateLabel(window.startsAt)}–${dateLabel(window.endsAt)}; mediana de ${window.cadenceDays} dias desde ${window.basedOnVersion}.`;
+}
+
+function renderRiotContent(settings, page, status, guild) {
+  const stream = settings?.[page];
+  if (page === 'patchNotes' || page === 'updates') {
+    return [
+      `## Riot Games — ${page === 'patchNotes' ? 'Patch Notes' : 'Updates'}`,
+      '',
+      `**Estado:** ${stream?.enabled ? 'ativado' : 'desativado'}`,
+      `**Canal:** ${channelLabel(stream?.channelId, guild)}`,
+      `**Cargo de notificação:** ${roleLabel(stream?.roleId, guild)}`,
+      `**Webhook:** ${stream?.webhook?.id ? `configurado (ID ${stream.webhook.id})` : 'não configurado'}`,
+      `**Linha de conteúdo:** ${page === 'patchNotes' ? 'campeões, itens, runas e sistemas' : 'novidades e anúncios do jogo'}`,
+      '',
+      'Selecione canal e cargo de notificação. Crie um webhook separado para este fluxo; o bot guarda o token criptografado no MongoDB.',
+      'A menção fica limitada ao cargo escolhido. O webhook mantém o avatar definido no Discord.',
+    ].join('\n');
+  }
+  if (page === 'scheduler') {
+    return [
+      '## Riot Games — agendamento',
+      '',
+      `**Monitoramento:** ${settings.scheduler.enabled ? 'ativado' : 'desativado'}`,
+      '**Inspeção regular:** a cada 12 horas',
+      `**Terça-feira:** ${settings.scheduler.tuesday.start}–${settings.scheduler.tuesday.end} UTC, intervalo de ${settings.scheduler.tuesday.intervalMinutes} min`,
+      `**Quarta-feira:** ${settings.scheduler.wednesday.start}–${settings.scheduler.wednesday.end} UTC, intervalo de ${settings.scheduler.wednesday.intervalMinutes} min`,
+      `**Idioma:** ${settings.preferredLanguage}; fallback para inglês ${settings.fallbackEnglish ? 'ativado' : 'desativado'}`,
+      `**Primeira ativação:** ${settings.firstActivationPolicy === 'register_only' ? 'registrar o histórico sem publicar' : 'publicar os três artigos mais recentes'}`,
+      `**Janela menor estimada:** ${settings.scheduler.minorWindow.enabled ? 'ativada' : 'desativada'} (${settings.scheduler.minorWindow.durationHours} h, ajustada às datas oficiais encontradas)`,
+      `**Janela de versão principal:** ${settings.scheduler.majorWindow.enabled ? 'ativada' : 'desativada'} (${settings.scheduler.majorWindow.durationHours} h, ajustada às datas oficiais encontradas)`,
+      `**Próxima janela menor estimada:** ${monitorWindowLabel(status?.monitorWindows?.minor)}`,
+      `**Próxima janela principal estimada:** ${monitorWindowLabel(status?.monitorWindows?.major)}`,
+      '',
+      'As janelas estimadas orientam a frequência de inspeção; não representam uma data de lançamento anunciada pela Riot.',
+      'A agenda fica desligada até um administrador ativá-la aqui.',
+    ].join('\n');
+  }
+  const latestErrors = status?.recentErrors?.length
+    ? status.recentErrors.map((error) => `• ${dateLabel(error.createdAt)} — ${error.code}: ${error.message}`).join('\n')
+    : 'Nenhum erro recente.';
+  return [
+    '## Riot Games — inspeções e prévias',
+    '',
+    `**Última inspeção:** ${dateLabel(status?.lastInspectionAt)} (${status?.lastInspectionStatus ?? 'nunca executada'})`,
+    `**Duração:** ${status?.lastInspectionDurationMs ? `${(status.lastInspectionDurationMs / 1000).toFixed(1)} s` : '—'}`,
+    `**Artigos identificados/classificados:** ${status?.lastInspectionCounts?.discovered ?? 0} / ${status?.lastInspectionCounts?.classified ?? 0}`,
+    `**Última publicação:** ${dateLabel(status?.lastPublicationAt)}${status?.lastPublicationPipeline ? ` (${status.lastPublicationPipeline === 'patchNotes' ? 'Patch Notes' : 'Updates'})` : ''}`,
+    '',
+    '**Erros recentes**',
+    latestErrors,
+    '',
+    'A inspeção manual coleta e classifica sem publicar. Depois, abra uma prévia pendente e publique somente após conferir o conteúdo.',
+    'As falhas terminais podem ser reabertas até três vezes; cada reabertura volta para a fila de prévias e exige aprovação.',
+  ].join('\n');
+}
+
 export function renderPanelContent(
   category,
   settings,
@@ -224,6 +311,9 @@ export function renderPanelContent(
   economySettings,
   levelsSection = 'levels',
   economyPage = 'overview',
+  riotSettings,
+  riotPage = 'patchNotes',
+  riotStatus,
 ) {
   if (category === 'home') {
     return [
@@ -232,6 +322,7 @@ export function renderPanelContent(
       'Escolha uma categoria no menu para abrir suas opções.',
       '',
       '**Disponível:** níveis e boosts de XP, economia em Yen, boas-vindas, calls temporárias, tickets e comandos utilitários.',
+      '**Riot Games:** publicações independentes de Patch Notes e Updates, com ativação administrativa.',
       '**Em preparação:** sugestões e destaque de perfis.',
     ].join('\n');
   }
@@ -256,6 +347,10 @@ export function renderPanelContent(
 
   if (category === 'welcome') {
     return renderWelcomeContent(settings, guild, welcomeSection);
+  }
+
+  if (category === 'riot_updates') {
+    return renderRiotContent(riotSettings, riotPage, riotStatus, guild);
   }
 
   if (category === 'voice_calls') {
@@ -425,6 +520,108 @@ function economyPageRow(page) {
   return new ActionRowBuilder().addComponents(select);
 }
 
+function riotPageRow(page) {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('panel:riot:page')
+    .setPlaceholder('Escolha uma seção de Riot Games')
+    .setMinValues(1)
+    .setMaxValues(1)
+    .addOptions(RIOT_PAGES.map((item) => ({
+      label: item.label,
+      value: item.id,
+      description: item.description,
+      default: item.id === page,
+    })));
+  return new ActionRowBuilder().addComponents(select);
+}
+
+function riotRows(page, settings) {
+  const rows = [riotPageRow(page)];
+  if (page === 'patchNotes' || page === 'updates') {
+    const stream = settings[page];
+    rows.push(new ActionRowBuilder().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId(`panel:riot:channel:${page}`)
+        .setPlaceholder(`Canal de ${page === 'patchNotes' ? 'Patch Notes' : 'Updates'}`)
+        .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+        .setMinValues(1)
+        .setMaxValues(1),
+    ));
+    rows.push(new ActionRowBuilder().addComponents(
+      new RoleSelectMenuBuilder()
+        .setCustomId(`panel:riot:role:${page}`)
+        .setPlaceholder(`Cargo de notificação de ${page === 'patchNotes' ? 'Patch Notes' : 'Updates'}`)
+        .setMinValues(1)
+        .setMaxValues(1),
+    ));
+    const actions = [
+      button(`panel:riot:toggle:${page}`, stream.enabled ? 'Desativar publicações' : 'Ativar publicações', ButtonStyle.Primary),
+      button(
+        `panel:riot:webhook:${page}`,
+        stream.webhook?.id ? 'Excluir webhook' : 'Criar webhook',
+        stream.webhook?.id ? ButtonStyle.Danger : ButtonStyle.Secondary,
+      ),
+      button(`panel:riot:clear-channel:${page}`, 'Limpar canal'),
+      button(`panel:riot:clear-role:${page}`, 'Limpar cargo'),
+    ];
+    rows.push(new ActionRowBuilder().addComponents(actions));
+    return rows;
+  }
+
+  if (page === 'scheduler') {
+    rows.push(new ActionRowBuilder().addComponents(
+      button('panel:riot:scheduler:toggle', settings.scheduler.enabled ? 'Desativar monitoramento' : 'Ativar monitoramento', ButtonStyle.Primary),
+      button('panel:riot:scheduler:edit', 'Configurar janelas'),
+      button('panel:riot:fallback:toggle', `Fallback inglês: ${settings.fallbackEnglish ? 'sim' : 'não'}`),
+      button('panel:riot:minor:toggle', `Janela menor: ${settings.scheduler.minorWindow.enabled ? 'sim' : 'não'}`),
+      button('panel:riot:major:toggle', `Janela principal: ${settings.scheduler.majorWindow.enabled ? 'sim' : 'não'}`),
+    ));
+    rows.push(new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('panel:riot:policy')
+        .setPlaceholder('Comportamento da primeira ativação')
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions([
+          { label: 'Registrar histórico sem publicar', value: 'register_only', default: settings.firstActivationPolicy === 'register_only' },
+          { label: 'Publicar os três artigos mais recentes', value: 'publish_recent', default: settings.firstActivationPolicy === 'publish_recent' },
+        ]),
+    ));
+    rows.push(new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('panel:riot:language')
+        .setPlaceholder('Idioma preferencial')
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions([
+          { label: 'Português do Brasil', value: 'pt-br', default: settings.preferredLanguage === 'pt-br' },
+          { label: 'English', value: 'en-us', default: settings.preferredLanguage === 'en-us' },
+        ]),
+    ));
+    return rows;
+  }
+
+  rows.push(new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('panel:riot:preview:pipeline')
+      .setPlaceholder('Escolha a prévia para visualizar')
+      .setMinValues(1)
+      .setMaxValues(1)
+      .addOptions([
+        { label: 'Patch Notes', value: 'patchNotes' },
+        { label: 'Updates', value: 'updates' },
+      ]),
+  ));
+  rows.push(new ActionRowBuilder().addComponents(
+    button('panel:riot:inspect', 'Executar inspeção manual', ButtonStyle.Primary),
+  ));
+  rows.push(new ActionRowBuilder().addComponents(
+    button('panel:riot:retry-failed:patchNotes', 'Reabrir falha Patch Notes'),
+    button('panel:riot:retry-failed:updates', 'Reabrir falha Updates'),
+  ));
+  return rows;
+}
+
 function economyRows(page, settings) {
   const rows = [levelsEconomySectionRow('economy'), economyPageRow(page)];
   if (page === 'overview') {
@@ -470,6 +667,8 @@ export function buildPanelRows(
   levelsSection = 'levels',
   economyPage = 'overview',
   economySettings = DEFAULT_ECONOMY_SETTINGS,
+  riotSettings,
+  riotPage = 'patchNotes',
 ) {
   const rows = [categorySelectRow()];
 
@@ -502,6 +701,11 @@ export function buildPanelRows(
       ),
     );
     return rows;
+  }
+
+  if (category === 'riot_updates') {
+    const selectedPage = RIOT_PAGES.some((item) => item.id === riotPage) ? riotPage : 'patchNotes';
+    return [...rows, ...riotRows(selectedPage, riotSettings)];
   }
 
   if (category !== 'levels') {
@@ -539,6 +743,29 @@ export function buildPanelRows(
     new ActionRowBuilder().addComponents(channelSelect),
   );
   return rows;
+}
+
+function modalInput(customId, label, value, { maxLength = 5 } = {}) {
+  const input = new TextInputBuilder()
+    .setCustomId(customId)
+    .setLabel(label)
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(maxLength)
+    .setValue(String(value));
+  return new ActionRowBuilder().addComponents(input);
+}
+
+export function buildRiotScheduleModal(settings) {
+  return new ModalBuilder()
+    .setCustomId('panel:riot:modal:windows')
+    .setTitle('Janelas de inspeção Riot')
+    .addComponents(
+      modalInput('tuesdayEnd', 'Fim da janela de terça (HH:MM UTC)', settings.scheduler.tuesday.end),
+      modalInput('wednesdayEnd', 'Fim da janela de quarta (HH:MM UTC)', settings.scheduler.wednesday.end),
+      modalInput('minorHours', 'Duração da janela menor (1 a 168 h)', settings.scheduler.minorWindow.durationHours),
+      modalInput('majorHours', 'Duração da janela principal (1 a 168 h)', settings.scheduler.majorWindow.durationHours),
+    );
 }
 
 function numberInput(customId, label, value, { required = true, placeholder = String(value) } = {}) {

@@ -11,6 +11,8 @@ import { registerEconomyRecovery } from './src/events/economy.js';
 import { initializeEconomyRepository } from './src/modules/economy/repository.js';
 import { initializeTicketRepository } from './src/modules/tickets/repository.js';
 import { registerTicketEvents } from './src/events/tickets.js';
+import { initializeRiotRepository } from './src/modules/riot-updates/repository.js';
+import { registerRiotScheduler } from './src/modules/riot-updates/scheduler.js';
 
 async function startBot() {
   const config = loadConfig();
@@ -24,12 +26,20 @@ async function startBot() {
       GatewayIntentBits.MessageContent,
     ],
   });
-  const context = { database, guildId: config.guildId, mongoClient, client: discordClient };
+  const context = {
+    database,
+    guildId: config.guildId,
+    mongoClient,
+    client: discordClient,
+  };
+  let stopRiotScheduler = null;
 
   try {
     await initializeDatabase(database, config.guildId);
     await initializeEconomyRepository(database);
     await initializeTicketRepository(database);
+    await initializeRiotRepository(database);
+    stopRiotScheduler = registerRiotScheduler(context);
     registerMessageCreate(discordClient, context);
     registerGuildMemberAdd(discordClient, context);
     registerInteractionCreate(discordClient, context);
@@ -51,6 +61,7 @@ async function startBot() {
       }
       shutdownStarted = true;
       console.info(`[Aplicação] Encerrando após ${signal}.`);
+      stopRiotScheduler?.();
       discordClient.destroy();
       try {
         await mongoClient.close();
@@ -62,6 +73,7 @@ async function startBot() {
     process.once('SIGINT', () => void shutdown('SIGINT'));
     process.once('SIGTERM', () => void shutdown('SIGTERM'));
   } catch (error) {
+    stopRiotScheduler?.();
     discordClient.destroy();
     await mongoClient.close();
     throw error;

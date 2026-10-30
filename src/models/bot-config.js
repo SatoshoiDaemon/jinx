@@ -3,6 +3,7 @@ import {
   BOT_CONFIG_ID,
   DEFAULT_ECONOMY_SETTINGS,
   DEFAULT_LEVEL_SETTINGS,
+  DEFAULT_RIOT_UPDATES_SETTINGS,
   DEFAULT_TICKET_SETTINGS,
   DEFAULT_WELCOME_SETTINGS,
 } from '../config/defaults.js';
@@ -32,6 +33,7 @@ export async function ensureBotConfig(database) {
           economy: DEFAULT_ECONOMY_SETTINGS,
           welcome: DEFAULT_WELCOME_SETTINGS,
           tickets: DEFAULT_TICKET_SETTINGS,
+          riot_updates: DEFAULT_RIOT_UPDATES_SETTINGS,
         },
         createdAt: new Date(),
       },

@@ -42,6 +42,34 @@ export const DEFAULT_TICKET_SETTINGS = Object.freeze({
   defaultInitialMessage: 'A equipe responsável verá sua solicitação em breve. Enquanto isso, conte aqui os detalhes que podem ajudar no atendimento.',
 });
 
+export const DEFAULT_RIOT_UPDATES_SETTINGS = Object.freeze({
+  patchNotes: Object.freeze({
+    enabled: false,
+    channelId: null,
+    roleId: null,
+    webhook: null,
+    baselineCompletedAt: null,
+  }),
+  updates: Object.freeze({
+    enabled: false,
+    channelId: null,
+    roleId: null,
+    webhook: null,
+    baselineCompletedAt: null,
+  }),
+  preferredLanguage: 'pt-br',
+  fallbackEnglish: true,
+  firstActivationPolicy: 'register_only',
+  scheduler: Object.freeze({
+    enabled: false,
+    regularIntervalHours: 12,
+    tuesday: Object.freeze({ start: '00:01', end: '23:59', intervalMinutes: 60 }),
+    wednesday: Object.freeze({ start: '00:00', end: '02:00', intervalMinutes: 5 }),
+    minorWindow: Object.freeze({ enabled: true, durationHours: 36 }),
+    majorWindow: Object.freeze({ enabled: true, durationHours: 72 }),
+  }),
+});
+
 export const SLOT_SYMBOLS = Object.freeze([
   Object.freeze({ symbol: '🍒', weight: 40 }),
   Object.freeze({ symbol: '🍋', weight: 25 }),

@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env index.js",
     "check": "node scripts/check-project.js",
+    "test": "node --test",
     "package:squarecloud": "node scripts/package-squarecloud.js",
     "deploy:squarecloud": "node scripts/deploy-squarecloud.js",
     "restore:github-secrets": "node scripts/restore-github-secrets.js"

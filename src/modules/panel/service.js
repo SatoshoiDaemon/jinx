@@ -25,6 +25,7 @@ import {
   PANEL_CATEGORIES,
   renderPanelContent,
 } from './components.js';
+import { handleRiotPanelInteraction, showRiotPage } from '../riot-updates/panel.js';
 
 function hasPanelPermission(interaction) {
   return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
@@ -73,6 +74,10 @@ async function showCategory(interaction, database, category, alreadyDeferred = f
   }
   if (category === 'tickets') {
     await showTicketAdmin(interaction, { database, guild: interaction.guild }, { alreadyDeferred });
+    return;
+  }
+  if (category === 'riot_updates') {
+    await showRiotPage(interaction, { database, client: interaction.client, guildId: interaction.guildId }, 'patchNotes', alreadyDeferred);
     return;
   }
   if (!alreadyDeferred) {
@@ -143,6 +148,10 @@ export async function handlePanelInteraction(interaction, context) {
   if (!hasPanelPermission(interaction)) {
     await replyV2(interaction, 'Você precisa da permissão **Gerenciar servidor** para usar este painel.', { ephemeral: true });
     return true;
+  }
+
+  if (interaction.customId?.startsWith('panel:riot:')) {
+    return handleRiotPanelInteraction(interaction, context);
   }
 
   if (ticketAdminInteraction) {

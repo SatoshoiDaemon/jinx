@@ -25,3 +25,6 @@ jobs:
 
       - name: Validar sintaxe e configuração
         run: npm run check
+
+      - name: Executar testes automatizados
+        run: npm test

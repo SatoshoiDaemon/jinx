@@ -31,7 +31,7 @@ Ao iniciar, o bot conecta ao MongoDB, registra os comandos somente na guilda de 
 - `/nivel adicionar` e `/nivel remover`: ajuste administrativo de níveis.
 - `/xp adicionar` e `/xp remover`: ajuste administrativo de XP.
 - `/perfil [membro]`: exibe informações básicas do perfil e o banner público, quando disponível.
-- `/painel`: abre o centro administrativo com níveis e economia, **Boas-vindas**, **Calls temporárias** e **Tickets e atendimento**. Em Calls temporárias, escolha um canal de voz base e a categoria para as calls. Ao entrar no canal base, a pessoa recebe uma call aberta, sem limite de participantes, com seu nome e é movida para ela. A call é apagada quando fica vazia; canal base e categoria podem ser removidos no painel.
+- `/painel`: abre o centro administrativo com níveis e economia, **Boas-vindas**, **Calls temporárias**, **Tickets e atendimento** e **Riot Games — Patch Notes e Updates**. Em Calls temporárias, escolha um canal de voz base e a categoria para as calls. Ao entrar no canal base, a pessoa recebe uma call aberta, sem limite de participantes, com seu nome e é movida para ela. A call é apagada quando fica vazia; canal base e categoria podem ser removidos no painel.
 
 ## Tickets e atendimento
 
@@ -124,6 +124,63 @@ O XP total é a fonte de verdade. A pessoa começa no nível 1; o XP necessário
 Os valores iniciais são 5–15 XP por mensagem, cooldown de 60 segundos, `xpBase=100`, `xpStep=25` e boost máximo de 5×. Pessoas com permissão de `Gerenciar servidor` podem alterá-los no `/painel`.
 
 Se vários cargos da pessoa tiverem boosts, vale o maior deles (ou 1 se nenhum se aplicar). Esse valor é multiplicado pelo boost do canal (ou 1). O XP sorteado é multiplicado pelo resultado e arredondado para baixo. O cooldown é atômico por membro. Bots e mensagens fora da guilda autorizada não recebem XP.
+
+## Riot Games — Patch Notes e Updates do Wild Rift
+
+O módulo mantém dois fluxos independentes, ambos desativados por padrão: **Patch Notes** publica balanceamento de campeões, itens, runas e sistemas; **Updates** publica novos campeões, skins, eventos, modos, passes e grandes anúncios. Cada fluxo usa um webhook, canal e cargo de notificação próprios. As mensagens usam exclusivamente Discord Components V2, com um container por item, imagem oficial quando disponível e menções limitadas ao cargo escolhido. Uma publicação extensa é dividida em mensagens ordenadas sem separar o container de um item.
+
+### Fonte e parsing
+
+O monitor consulta primeiro a lista oficial em português do Brasil e usa a versão inglesa como fallback configurável:
+
+- `https://wildrift.leagueoflegends.com/pt-br/news/game-updates/`
+- `https://wildrift.leagueoflegends.com/en-us/news/game-updates/`
+
+As páginas entregam no HTML os cards, datas, canonical, resumo e seções dos artigos. Não foi encontrada uma API pública estruturada adequada; o módulo usa HTTP nativo do Node e parsing do HTML publicado pela Riot, sem Chromium ou navegador automatizado. O parser separa coleta, classificação e apresentação, preserva texto e valores numéricos originais e encaminha seções desconhecidas para revisão em vez de adivinhar. A análise é limitada a 100 seções e 1.000 subdivisões por artigo; excedentes permanecem no texto original e exigem revisão. URLs de artigos e imagens são validadas contra os domínios oficiais. A Riot pode mudar a estrutura do HTML; nesse caso a seção fica registrada para revisão e os testes com fixtures ajudam a detectar a mudança.
+
+As fixtures são cópias HTML de artigos oficiais 7.3 e 7.3b em português. A validação atual extrai habilidades e valores como `100% → 110%`, classifica seções mistas por item e preserva a data publicada pela Riot. Mudanças posteriores no mesmo canonical geram uma nova revisão identificada como retificação; itens sem mudança continuam deduplicados.
+
+### Calendário
+
+As datas abaixo foram conferidas nas páginas oficiais de atualizações e armazenadas como histórico inicial, em UTC, às 09:00:
+
+| Versão | Publicação oficial |
+| --- | --- |
+| 7.2 | 08 jul 2026 |
+| 7.2a | 15 jul 2026 |
+| 7.2b | 29 jul 2026 |
+| 7.2c | 12 ago 2026 |
+| 7.2d | 26 ago 2026 |
+| 7.2e | 09 set 2026 |
+| 7.3 | 21 set 2026 |
+| 7.3a | 29 set 2026 |
+| 7.3b | 14 out 2026 |
+| 7.3c | 21 out 2026 |
+| 7.3d | 28 out 2026 |
+
+Os intervalos observados variam: as atualizações menores listadas acima tiveram intervalos de 7 a 15 dias; 7.2 até 7.3 levou 75 dias. Não são promessas de datas futuras. As janelas adicionais usam a mediana recente do histórico observado — no histórico inicial, 7 dias para as menores e 75 dias entre as versões principais — e uma janela configurável ao redor da projeção. Assim, o scheduler intensifica consultas perto da expectativa, mas continua verificando a fonte em outros horários.
+
+### Ativação administrativa
+
+1. Não é necessária uma chave adicional de criptografia. Os tokens dos webhooks ficam no documento de configuração Riot do MongoDB para que o bot possa publicar. Restrinja o acesso ao banco e aos backups: quem obtiver esses tokens pode publicar pelo webhook correspondente.
+2. Em `/painel` → **Riot Games — Patch Notes e Updates**, configure canal e cargo separadamente para cada fluxo. O bot verifica as permissões de canal e a permissão para mencionar o cargo antes de ativar.
+3. Use **Criar webhook** para criar os webhooks `Patch Notes` e `Updates`. O bot não define avatar e não altera avatares personalizados de webhooks existentes. A criação requer `Gerenciar webhooks`; publicação requer `Ver canal`, `Enviar mensagens` e `Ler histórico`.
+4. Selecione português como idioma preferido (padrão) e configure fallback em inglês, janelas de terça/quarta e durações das janelas adaptativas.
+5. Escolha o comportamento da primeira ativação. **Registrar histórico sem publicar** é o padrão e grava até os 12 artigos mais recentes encontrados por inspeção como baseline. **Publicar os recentes** coloca até os 3 artigos mais novos na fila por fluxo, ainda aguardando aprovação manual.
+6. Ative cada fluxo desejado, mantendo o scheduler desligado, e execute uma inspeção manual. Ela coleta, processa e enfileira, mas não publica automaticamente. Abra uma prévia e aprove explicitamente a publicação. Com a opção padrão de baseline, artigos antigos não geram prévias; para revisar e aprovar até os 3 mais recentes na primeira ativação, escolha **Publicar os recentes**.
+7. Quando as prévias estiverem aprovadas e a configuração validada, ligue o scheduler para permitir que inspeções futuras publiquem automaticamente.
+
+Se houver um webhook salvo por uma versão anterior com token criptografado, exclua-o e crie outro pelo painel. Sem a chave antiga, aquele token não pode ser recuperado.
+
+O scheduler não inicia inspeções de fonte enquanto `scheduler.enabled` estiver falso. Ao ativá-lo, faz verificações regulares a cada 12 horas, às terças a partir de 00:01 UTC por padrão (intervalo de 60 minutos) e às quartas a cada 5 minutos dentro da janela configurável (00:00–02:00 UTC por padrão). Também considera as janelas adaptativas de versões menores e principais. Quando slots coincidem, uma única inspeção registra todos os motivos. Locks MongoDB com lease e heartbeat impedem execução concorrente e recuperam após reinicialização.
+
+### Persistência, fila e recuperação
+
+Os dados ficam no MongoDB existente, sem serviço adicional: `riot_articles` guarda canonical, versão, data, hash, classificação e estado; `riot_http_cache` guarda corpos HTML limitados e cabeçalhos ETag/Last-Modified; `riot_inspections` mantém histórico e métricas; `riot_scheduler_state` persiste slots e lock; `riot_publications` e `riot_publication_items` guardam fila, tentativas, mensagens e deduplicação; `riot_errors` retém falhas recentes. Índices únicos protegem canonical URL, publicação por artigo/hash/fluxo e item por fluxo/hash.
+
+O processamento usa `DISCOVERED → CLASSIFIED → QUEUED → PUBLISHED`, além de `REVIEW_REQUIRED`, `DUPLICATE`, `RETRYABLE_FAILURE` e `FAILED`. HTTP usa timeout de 12 segundos, resposta máxima de 2 MiB, concorrência de 2 requisições por domínio, fila limitada, até 3 tentativas, backoff com jitter e suporte a `Retry-After`. A recuperação procura marcadores `WR:` nas últimas 100 mensagens do canal antes de reenviar uma publicação interrompida, reduzindo duplicações se o processo cair após o Discord aceitar a mensagem. Uma falha terminal pode ser reaberta até 3 vezes por administradores no painel; cada reabertura exige prévia e aprovação, e não envia automaticamente.
+
+O painel **Inspeções e prévias** mostra última inspeção, publicação, estado de cada fluxo e erros recentes. Limites de tamanho de Components V2 que não possam ser respeitados deixam a publicação em revisão. Se uma mudança futura na Riot não puder ser interpretada, o texto original permanece no documento de artigo e o painel contabiliza o item para revisão.
 
 ## Dados e configurações
 
