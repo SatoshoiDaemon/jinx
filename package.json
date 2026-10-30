@@ -1,0 +1,20 @@
+{
+  "name": "jinx-discord-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env index.js",
+    "check": "node scripts/check-project.js",
+    "package:squarecloud": "node scripts/package-squarecloud.js",
+    "restore:github-secrets": "node scripts/restore-github-secrets.js"
+  },
+  "dependencies": {
+    "discord.js": "14.27.0",
+    "mongodb": "7.7.0"
+  }
+}
