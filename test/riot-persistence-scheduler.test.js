@@ -190,10 +190,10 @@ test('usa histórico verificado e evita varrer sem ativação administrativa', (
   assert.equal(VERIFIED_PATCH_HISTORY.at(-1).version, '7.3d');
   const windows = deriveRiotMonitorWindows([], settings, new Date('2026-10-30T00:00:00Z'));
   assert.equal(windows.minor.basedOnVersion, '7.3d');
-  assert.equal(windows.minor.cadenceDays, 7);
-  assert.equal(windows.minor.expectedAt.toISOString(), '2026-11-04T09:00:00.000Z');
-  assert.equal(windows.major.cadenceDays, 75);
-  assert.equal(windows.major.expectedAt.toISOString(), '2026-12-05T09:00:00.000Z');
+  assert.equal(windows.minor.cadenceDays, 14);
+  assert.equal(windows.minor.expectedAt.toISOString(), '2026-11-11T09:00:00.000Z');
+  assert.equal(windows.major.cadenceDays, 77);
+  assert.equal(windows.major.expectedAt.toISOString(), '2026-12-08T00:01:00.000Z');
 
   const now = new Date('2026-11-03T00:01:00Z');
   assert.deepEqual(getDueInspectionSlots({ settings, now }), []);
@@ -213,4 +213,40 @@ test('usa histórico verificado e evita varrer sem ativação administrativa', (
     monitorWindows: { minor: null, major: null },
   });
   assert.deepEqual(sameWindow, []);
+});
+
+test('preserva os intervalos fixos e continua inspecionando fora das datas do calendário', () => {
+  const settings = structuredClone(DEFAULT_RIOT_UPDATES_SETTINGS);
+  settings.scheduler.enabled = true;
+  settings.scheduler.wednesday.end = '00:10';
+  const tuesday = new Date('2026-11-03T00:01:00Z');
+  const tuesdaySlots = getDueInspectionSlots({
+    settings,
+    state: { lastInspectionAt: new Date(tuesday.getTime() - 12 * 60 * 60_000) },
+    monitorWindows: { minor: null, major: null },
+    now: tuesday,
+  });
+  assert.deepEqual(tuesdaySlots.map(({ kind }) => kind), ['regular', 'tuesday']);
+
+  const wednesday = new Date('2026-11-04T00:05:00Z');
+  const wednesdaySlots = getDueInspectionSlots({
+    settings,
+    state: {
+      lastInspectionAt: new Date(wednesday.getTime() - 60_000),
+      lastScheduledSlots: { wednesday: '2026-11-04:0' },
+    },
+    monitorWindows: { minor: null, major: null },
+    now: wednesday,
+  });
+  assert.deepEqual(wednesdaySlots.map(({ kind }) => kind), ['wednesday']);
+  assert.equal(wednesdaySlots[0].key, 'wednesday:2026-11-04:1');
+
+  const outsideCalendar = new Date('2026-11-06T12:00:00Z');
+  const regularSlot = getDueInspectionSlots({
+    settings,
+    state: { lastInspectionAt: new Date('2026-11-06T00:00:00Z') },
+    monitorWindows: { minor: null, major: null },
+    now: outsideCalendar,
+  });
+  assert.deepEqual(regularSlot.map(({ kind }) => kind), ['regular']);
 });

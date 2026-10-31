@@ -61,6 +61,8 @@ export async function initializeRiotRepository(database) {
         lockOwner: null,
         lockExpiresAt: new Date(0),
         lastScheduledSlots: {},
+        releaseCalendarLockOwner: null,
+        releaseCalendarLockExpiresAt: new Date(0),
         createdAt: new Date(),
       },
     },
@@ -393,6 +395,37 @@ export async function releaseInspectionLock(database, ownerId) {
   await collection(database, RIOT_SCHEDULER_STATE_COLLECTION).updateOne(
     { _id: RIOT_SCHEDULER_STATE_ID, lockOwner: ownerId },
     { $set: { lockExpiresAt: new Date(0) }, $unset: { lockOwner: '', lockStartedAt: '' } },
+  );
+}
+
+export async function acquireReleaseCalendarLock(database, ownerId, now = new Date(), leaseMs = 5 * 60_000) {
+  const result = await collection(database, RIOT_SCHEDULER_STATE_COLLECTION).updateOne(
+    {
+      _id: RIOT_SCHEDULER_STATE_ID,
+      $or: [
+        { releaseCalendarLockExpiresAt: { $lte: now } },
+        { releaseCalendarLockOwner: null },
+        { releaseCalendarLockOwner: { $exists: false } },
+      ],
+    },
+    {
+      $set: {
+        releaseCalendarLockOwner: ownerId,
+        releaseCalendarLockExpiresAt: new Date(now.getTime() + leaseMs),
+        releaseCalendarLockStartedAt: now,
+      },
+    },
+  );
+  return result.modifiedCount === 1;
+}
+
+export async function releaseReleaseCalendarLock(database, ownerId) {
+  await collection(database, RIOT_SCHEDULER_STATE_COLLECTION).updateOne(
+    { _id: RIOT_SCHEDULER_STATE_ID, releaseCalendarLockOwner: ownerId },
+    {
+      $set: { releaseCalendarLockExpiresAt: new Date(0) },
+      $unset: { releaseCalendarLockOwner: '', releaseCalendarLockStartedAt: '' },
+    },
   );
 }
 

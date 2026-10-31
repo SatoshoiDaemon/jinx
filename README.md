@@ -142,9 +142,9 @@ As fixtures são cópias HTML de artigos oficiais 7.3 e 7.3b em português. A va
 
 ### Calendário
 
-As datas abaixo foram conferidas nas páginas oficiais de atualizações e armazenadas como histórico inicial, em UTC, às 09:00:
+As datas de publicação abaixo foram conferidas no feed oficial de atualizações; são as datas em que as notas saíram, não os horários em que a versão entrou no jogo:
 
-| Versão | Publicação oficial |
+| Versão | Publicação das notas (UTC) |
 | --- | --- |
 | 7.2 | 08 jul 2026 |
 | 7.2a | 15 jul 2026 |
@@ -158,7 +158,11 @@ As datas abaixo foram conferidas nas páginas oficiais de atualizações e armaz
 | 7.3c | 21 out 2026 |
 | 7.3d | 28 out 2026 |
 
-Os intervalos observados variam: as atualizações menores listadas acima tiveram intervalos de 7 a 15 dias; 7.2 até 7.3 levou 75 dias. Não são promessas de datas futuras. As janelas adicionais usam a mediana recente do histórico observado — no histórico inicial, 7 dias para as menores e 75 dias entre as versões principais — e uma janela configurável ao redor da projeção. Assim, o scheduler intensifica consultas perto da expectativa, mas continua verificando a fonte em outros horários.
+A Riot mantém um [calendário oficial de lançamento de versões principais](https://support.riotgames.com/en-us/wild-rift/events/wild-rift-patch-schedule). Ele publica a data às 00:01 UTC, lista 7.0 em 22 jan 2026, 7.1 em 09 abr, 7.2 em 09 jul e 7.3 em 22 set, e informa que não inclui patches menores. Por isso a publicação das notas 7.3 em 21 set permanece separada do lançamento 7.3 em 22 set.
+
+Quando ativo, o scheduler consulta esse calendário a cada 12 horas, guarda no MongoDB as versões, as datas de lançamento, a URL, o hash e os horários da última e da próxima consulta. Usa ETag e Last-Modified. Se a página falhar ou mudar de estrutura, mantém as últimas datas oficiais sincronizadas, registra o erro e calcula uma previsão somente quando não há uma data oficial futura. O histórico verificado de lançamentos principais tem intervalos de 75 a 91 dias (mediana de 77); no histórico recente das notas menores, a mediana móvel inicial é de 14 dias. Essas medianas orientam janelas de inspeção e não são datas prometidas.
+
+A coleta regular continua a cada 12 horas, as terças começam às 00:01 UTC com intervalo padrão de 60 minutos e as quartas verificam a cada 5 minutos na janela configurável. As janelas adaptativas intensificam consultas de patches menores e do próximo lançamento principal. Se horários coincidirem, uma única inspeção registra todos os motivos. O feed de artigos continua sendo consultado fora de qualquer calendário para detectar publicações antecipadas, atrasadas ou imprevistas.
 
 ### Ativação administrativa
 
@@ -172,15 +176,15 @@ Os intervalos observados variam: as atualizações menores listadas acima tivera
 
 Se houver um webhook salvo por uma versão anterior com token criptografado, exclua-o e crie outro pelo painel. Sem a chave antiga, aquele token não pode ser recuperado.
 
-O scheduler não inicia inspeções de fonte enquanto `scheduler.enabled` estiver falso. Ao ativá-lo, faz verificações regulares a cada 12 horas, às terças a partir de 00:01 UTC por padrão (intervalo de 60 minutos) e às quartas a cada 5 minutos dentro da janela configurável (00:00–02:00 UTC por padrão). Também considera as janelas adaptativas de versões menores e principais. Quando slots coincidem, uma única inspeção registra todos os motivos. Locks MongoDB com lease e heartbeat impedem execução concorrente e recuperam após reinicialização.
+O scheduler não inicia consultas automáticas enquanto `scheduler.enabled` estiver falso. A inspeção manual também consulta o calendário oficial. Ao ativar, sincroniza o calendário de lançamentos principais na primeira oportunidade e depois a cada 12 horas; mantém as inspeções regulares, a janela de terça a partir de 00:01 UTC (intervalo padrão de 60 minutos), a janela de quarta a cada 5 minutos (00:00–02:00 UTC por padrão) e as janelas adaptativas. Locks MongoDB separados impedem consultas duplicadas do calendário e inspeções concorrentes e se recuperam após reinicialização.
 
 ### Persistência, fila e recuperação
 
-Os dados ficam no MongoDB existente, sem serviço adicional: `riot_articles` guarda canonical, versão, data, hash, classificação e estado; `riot_http_cache` guarda corpos HTML limitados e cabeçalhos ETag/Last-Modified; `riot_inspections` mantém histórico e métricas; `riot_scheduler_state` persiste slots e lock; `riot_publications` e `riot_publication_items` guardam fila, tentativas, mensagens e deduplicação; `riot_errors` retém falhas recentes. Índices únicos protegem canonical URL, publicação por artigo/hash/fluxo e item por fluxo/hash.
+Os dados ficam no MongoDB existente, sem serviço adicional: `riot_articles` guarda canonical, versão, data de publicação das notas, hash, classificação e estado; `riot_http_cache` guarda corpos HTML limitados e cabeçalhos ETag/Last-Modified; `riot_inspections` mantém histórico e métricas; `riot_scheduler_state` persiste slots, locks e calendário de lançamentos oficiais; `riot_publications` e `riot_publication_items` guardam fila, tentativas, mensagens e deduplicação; `riot_errors` retém falhas recentes. Índices únicos protegem canonical URL, publicação por artigo/hash/fluxo e item por fluxo/hash.
 
 O processamento usa `DISCOVERED → CLASSIFIED → QUEUED → PUBLISHED`, além de `REVIEW_REQUIRED`, `DUPLICATE`, `RETRYABLE_FAILURE` e `FAILED`. HTTP usa timeout de 12 segundos, resposta máxima de 2 MiB, concorrência de 2 requisições por domínio, fila limitada, até 3 tentativas, backoff com jitter e suporte a `Retry-After`. A recuperação procura marcadores `WR:` nas últimas 100 mensagens do canal antes de reenviar uma publicação interrompida, reduzindo duplicações se o processo cair após o Discord aceitar a mensagem. Uma falha terminal pode ser reaberta até 3 vezes por administradores no painel; cada reabertura exige prévia e aprovação, e não envia automaticamente.
 
-O painel **Inspeções e prévias** mostra última inspeção, publicação, estado de cada fluxo e erros recentes. Limites de tamanho de Components V2 que não possam ser respeitados deixam a publicação em revisão. Se uma mudança futura na Riot não puder ser interpretada, o texto original permanece no documento de artigo e o painel contabiliza o item para revisão.
+O painel de agendamento mostra a última e a próxima consulta do calendário, identifica se a próxima janela principal usa uma data oficial ou uma previsão histórica e descreve a janela menor em relação à publicação das notas. O painel **Inspeções e prévias** mostra última inspeção, publicação, estado de cada fluxo e erros recentes. Limites de tamanho de Components V2 que não possam ser respeitados deixam a publicação em revisão. Se uma mudança futura na Riot não puder ser interpretada, o texto original permanece no documento de artigo e o painel contabiliza o item para revisão.
 
 ## Dados e configurações
 

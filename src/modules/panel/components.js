@@ -246,7 +246,13 @@ function dateLabel(value) {
 
 function monitorWindowLabel(window) {
   if (!window?.expectedAt) return 'sem histórico oficial suficiente';
-  return `${dateLabel(window.expectedAt)}; janela ${dateLabel(window.startsAt)}–${dateLabel(window.endsAt)}; mediana de ${window.cadenceDays} dias desde ${window.basedOnVersion}.`;
+  const range = `janela ${dateLabel(window.startsAt)}–${dateLabel(window.endsAt)}`;
+  if (window.dateKind === 'version_release') {
+    return window.source === 'official_schedule'
+      ? `lançamento oficial de ${window.basedOnVersion}: ${dateLabel(window.expectedAt)}; ${range}.`
+      : `previsão de lançamento: ${dateLabel(window.expectedAt)}; ${range}; mediana histórica de ${window.cadenceDays} dias após ${window.basedOnVersion}.`;
+  }
+  return `previsão baseada na publicação das notas de ${window.basedOnVersion}: ${dateLabel(window.expectedAt)}; ${range}; mediana histórica de ${window.cadenceDays} dias.`;
 }
 
 function renderRiotContent(settings, page, status, guild) {
@@ -261,7 +267,7 @@ function renderRiotContent(settings, page, status, guild) {
       `**Webhook:** ${stream?.webhook?.id ? `configurado (ID ${stream.webhook.id})` : 'não configurado'}`,
       `**Linha de conteúdo:** ${page === 'patchNotes' ? 'campeões, itens, runas e sistemas' : 'novidades e anúncios do jogo'}`,
       '',
-      'Selecione canal e cargo de notificação. Crie um webhook separado para este fluxo; o bot guarda o token criptografado no MongoDB.',
+      'Selecione canal e cargo de notificação. Crie um webhook separado para este fluxo; o bot guarda o token no MongoDB.',
       'A menção fica limitada ao cargo escolhido. O webhook mantém o avatar definido no Discord.',
     ].join('\n');
   }
@@ -278,9 +284,12 @@ function renderRiotContent(settings, page, status, guild) {
       `**Janela menor estimada:** ${settings.scheduler.minorWindow.enabled ? 'ativada' : 'desativada'} (${settings.scheduler.minorWindow.durationHours} h, ajustada às datas oficiais encontradas)`,
       `**Janela de versão principal:** ${settings.scheduler.majorWindow.enabled ? 'ativada' : 'desativada'} (${settings.scheduler.majorWindow.durationHours} h, ajustada às datas oficiais encontradas)`,
       `**Próxima janela menor estimada:** ${monitorWindowLabel(status?.monitorWindows?.minor)}`,
-      `**Próxima janela principal estimada:** ${monitorWindowLabel(status?.monitorWindows?.major)}`,
+      `**Próxima janela principal:** ${monitorWindowLabel(status?.monitorWindows?.major)}`,
+      `**Última consulta do calendário oficial:** ${dateLabel(status?.releaseScheduleLastCheckedAt)}`,
+      `**Próxima consulta do calendário:** ${dateLabel(status?.releaseScheduleNextSyncAt)}`,
       '',
-      'As janelas estimadas orientam a frequência de inspeção; não representam uma data de lançamento anunciada pela Riot.',
+      'A agenda oficial informa lançamentos de versões principais às 00:01 UTC e não inclui patches menores. As janelas menores usam a data de publicação das notas; as datas de lançamento ficam separadas.',
+      'Se o calendário oficial estiver indisponível, o bot preserva a última versão sincronizada e projeta a próxima data a partir do histórico verificado.',
       'A agenda fica desligada até um administrador ativá-la aqui.',
     ].join('\n');
   }

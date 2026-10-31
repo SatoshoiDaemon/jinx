@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { classifyRiotArticle } from './classifier.js';
 import { deriveRiotMonitorWindows, getDueInspectionSlots } from './calendar.js';
-import { RiotHttpClient, RiotHttpError, RIOT_LISTING_URLS } from './http.js';
+import { RiotHttpClient, RiotHttpError, RIOT_LISTING_URLS, RIOT_RELEASE_SCHEDULE_URL } from './http.js';
 import { parseRiotArticle, parseRiotListing } from './parser.js';
+import { parseRiotReleaseSchedule } from './release-calendar.js';
 import { getRiotSettings, updateRiotSetting } from './settings.js';
 import { publishQueuedRiotUpdates, reconcileStaleRiotPublications } from './publisher.js';
 import {
   acquireInspectionLock,
+  acquireReleaseCalendarLock,
   createInspectionRecord,
   finishInspectionRecord,
   getRecentArticleHistory,
@@ -17,6 +19,7 @@ import {
   queuePublication,
   recordRiotDiscovery,
   releaseInspectionLock,
+  releaseReleaseCalendarLock,
   renewInspectionLock,
   saveDiscoveredArticle,
   saveRiotError,
@@ -29,6 +32,7 @@ const FIRST_ACTIVATION_RECENT_ARTICLES = 3;
 const MAX_AUTO_PUBLISH_PER_INSPECTION = 5;
 const LOCK_HEARTBEAT_MS = 60_000;
 const LOCK_LEASE_MS = 5 * 60_000;
+const RELEASE_SCHEDULE_REFRESH_MS = 12 * 60 * 60_000;
 
 const localRuns = new WeakSet();
 
@@ -379,6 +383,7 @@ export async function runRiotInspection(context, {
 }
 
 export async function runRiotManualInspection(context) {
+  await syncOfficialRiotReleaseSchedule(context);
   const plan = await getRiotSchedulerPlan(context);
   const scheduledSlots = getDueInspectionSlots({
     settings: plan.settings,
@@ -392,9 +397,74 @@ export async function runRiotManualInspection(context) {
 export async function getRiotSchedulerPlan(context, now = new Date()) {
   const settings = await getRiotSettings(context.database);
   const articles = await getRecentArticleHistory(context.database, 80);
-  const monitorWindows = deriveRiotMonitorWindows(articles, settings, now);
   const state = await getRiotSchedulerState(context.database);
+  const monitorWindows = deriveRiotMonitorWindows(articles, settings, now, state?.officialReleaseSchedule);
   return { settings, articles, monitorWindows, state, now };
+}
+
+export async function syncOfficialRiotReleaseSchedule(context, { now = new Date(), state: knownState = null } = {}) {
+  const database = context.database;
+  let state = knownState ?? await getRiotSchedulerState(database);
+  const nextSyncAt = state?.releaseScheduleNextSyncAt ? new Date(state.releaseScheduleNextSyncAt) : null;
+  if (nextSyncAt && nextSyncAt > now) return { state, updated: false, skipped: true };
+
+  const ownerId = randomUUID();
+  const locked = await acquireReleaseCalendarLock(database, ownerId, now, LOCK_LEASE_MS);
+  if (!locked) return { state: await getRiotSchedulerState(database), updated: false, skipped: true };
+
+  try {
+    const response = await loadHtml(context, RIOT_RELEASE_SCHEDULE_URL);
+    const schedule = parseRiotReleaseSchedule(response.body, { sourceUrl: RIOT_RELEASE_SCHEDULE_URL, fetchedAt: now });
+    const previousHash = state?.releaseScheduleContentHash ?? null;
+    const updated = previousHash !== schedule.contentHash;
+    await saveSchedulerState(database, {
+      ...(updated || !state?.officialReleaseSchedule?.length
+        ? { officialReleaseSchedule: schedule.releaseDates }
+        : {}),
+      releaseScheduleSourceUrl: schedule.sourceUrl,
+      releaseScheduleContentHash: schedule.contentHash,
+      releaseScheduleLastCheckedAt: now,
+      releaseScheduleLastSyncedAt: now,
+      releaseScheduleNextSyncAt: new Date(now.getTime() + RELEASE_SCHEDULE_REFRESH_MS),
+      releaseScheduleLastError: null,
+      ...(updated ? { releaseScheduleChangedAt: now } : {}),
+    });
+    state = await getRiotSchedulerState(database);
+    log(context, 'info', 'riot_release_schedule_synced', {
+      changed: updated,
+      versions: schedule.releaseDates.length,
+      nextSyncAt: state.releaseScheduleNextSyncAt,
+      sourceUrl: schedule.sourceUrl,
+    });
+    return { state, updated, skipped: false };
+  } catch (error) {
+    const code = error?.code ?? error?.name ?? 'RIOT_RELEASE_SCHEDULE_ERROR';
+    const message = String(error?.message ?? 'Falha ao sincronizar calendário oficial.').slice(0, 500);
+    await saveRiotError(database, {
+      scope: 'release_schedule',
+      code,
+      message,
+      details: { sourceUrl: RIOT_RELEASE_SCHEDULE_URL, status: error?.status ?? null },
+      now,
+    });
+    await saveSchedulerState(database, {
+      releaseScheduleLastCheckedAt: now,
+      releaseScheduleNextSyncAt: new Date(now.getTime() + RELEASE_SCHEDULE_REFRESH_MS),
+      releaseScheduleLastError: { code, message, at: now },
+    });
+    log(context, 'error', 'riot_release_schedule_sync_failed', {
+      code,
+      status: error?.status ?? null,
+      nextSyncAt: new Date(now.getTime() + RELEASE_SCHEDULE_REFRESH_MS),
+      sourceUrl: RIOT_RELEASE_SCHEDULE_URL,
+    });
+    state = await getRiotSchedulerState(database);
+    return { state, updated: false, skipped: false, error: { code, message } };
+  } finally {
+    await releaseReleaseCalendarLock(database, ownerId).catch((error) => {
+      log(context, 'error', 'riot_release_schedule_lock_release_failed', { code: error?.code ?? error?.name });
+    });
+  }
 }
 
 export async function getRiotSourceHealth(context) {
@@ -414,6 +484,12 @@ export async function getRiotSourceHealth(context) {
     lastError: state.lastError ?? null,
     recentErrors,
     monitorWindows: plan.monitorWindows,
+    releaseSchedule: state.officialReleaseSchedule ?? [],
+    releaseScheduleSourceUrl: state.releaseScheduleSourceUrl ?? RIOT_RELEASE_SCHEDULE_URL,
+    releaseScheduleLastCheckedAt: state.releaseScheduleLastCheckedAt ?? null,
+    releaseScheduleLastSyncedAt: state.releaseScheduleLastSyncedAt ?? null,
+    releaseScheduleNextSyncAt: state.releaseScheduleNextSyncAt ?? null,
+    releaseScheduleLastError: state.releaseScheduleLastError ?? null,
   };
 }
 

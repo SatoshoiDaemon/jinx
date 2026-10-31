@@ -33,7 +33,8 @@ test('renderiza projeção oficial no painel e limita controles às linhas do Di
     },
   );
   assert.match(content, /04\/11\/2026, 09:00 UTC/u);
-  assert.match(content, /mediana de 7 dias desde 7\.3d/u);
+  assert.match(content, /publicação das notas de 7\.3d/u);
+  assert.match(content, /mediana histórica de 7 dias/u);
   assert.match(content, /agenda fica desligada/u);
 
   const container = createV2Container(content);
@@ -55,6 +56,24 @@ test('renderiza projeção oficial no painel e limita controles às linhas do Di
   const statusIds = statusRows.flatMap((row) => row.toJSON().components.map((component) => component.custom_id));
   assert.ok(statusIds.includes('panel:riot:retry-failed:patchNotes'));
   assert.ok(statusIds.includes('panel:riot:retry-failed:updates'));
+});
+
+test('identifica data oficial de lançamento principal sem confundi-la com a publicação das notas', () => {
+  const settings = normalizeRiotSettings(DEFAULT_RIOT_UPDATES_SETTINGS);
+  const content = renderPanelContent(
+    'riot_updates', null, { channels: { cache: new Map() }, roles: { cache: new Map() } },
+    'overview', undefined, 'levels', 'overview', settings, 'scheduler', {
+      releaseScheduleLastCheckedAt: new Date('2026-10-31T00:00:00Z'),
+      releaseScheduleNextSyncAt: new Date('2026-10-31T12:00:00Z'),
+      monitorWindows: {
+        minor: { expectedAt: new Date('2026-11-04T09:00:00Z'), startsAt: new Date('2026-11-03T15:00:00Z'), endsAt: new Date('2026-11-05T03:00:00Z'), cadenceDays: 7, basedOnVersion: '7.3d', dateKind: 'notes_publication', source: 'history' },
+        major: { expectedAt: new Date('2026-12-03T00:01:00Z'), startsAt: new Date('2026-12-01T12:01:00Z'), endsAt: new Date('2026-12-04T12:01:00Z'), cadenceDays: 77, basedOnVersion: '7.4', dateKind: 'version_release', source: 'official_schedule' },
+      },
+    },
+  );
+  assert.match(content, /publicação das notas de 7\.3d/u);
+  assert.match(content, /lançamento oficial de 7\.4: 03\/12\/2026, 00:01 UTC/u);
+  assert.match(content, /Última consulta do calendário oficial/u);
 });
 
 test('permite navegar por todas as páginas da prévia antes da aprovação', async () => {

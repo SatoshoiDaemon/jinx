@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RiotHttpClient, normalizeRiotArticleUrl } from '../src/modules/riot-updates/http.js';
+import { RiotHttpClient, normalizeRiotArticleUrl, normalizeRiotSourceUrl, RIOT_RELEASE_SCHEDULE_URL } from '../src/modules/riot-updates/http.js';
 
 const url = 'https://wildrift.leagueoflegends.com/pt-br/news/game-updates/article/';
 const htmlResponse = (body = '<html></html>', headers = {}) => new Response(body, {
@@ -15,6 +15,15 @@ test('aceita apenas URLs HTTPS da lista oficial de atualizações', () => {
   assert.equal(normalizeRiotArticleUrl('https://user@wildrift.leagueoflegends.com/pt-br/news/game-updates/a/'), null);
   assert.equal(normalizeRiotArticleUrl('https://wildrift.leagueoflegends.com/pt-br/news/other/a/'), null);
   assert.equal(normalizeRiotArticleUrl('https://127.0.0.1/pt-br/news/game-updates/a/'), null);
+});
+
+test('permite apenas a página fixa de calendário da Riot Support como fonte adicional', () => {
+  assert.equal(normalizeRiotSourceUrl(RIOT_RELEASE_SCHEDULE_URL), RIOT_RELEASE_SCHEDULE_URL);
+  assert.equal(normalizeRiotSourceUrl(`${RIOT_RELEASE_SCHEDULE_URL}/`), RIOT_RELEASE_SCHEDULE_URL);
+  assert.equal(normalizeRiotSourceUrl('https://support.riotgames.com/en-us/wild-rift/events/other'), null);
+  assert.equal(normalizeRiotSourceUrl('https://support.riotgames.com.evil.test/en-us/wild-rift/events/wild-rift-patch-schedule'), null);
+  assert.equal(normalizeRiotSourceUrl('http://support.riotgames.com/en-us/wild-rift/events/wild-rift-patch-schedule'), null);
+  assert.equal(normalizeRiotSourceUrl('https://support.riotgames.com:444/en-us/wild-rift/events/wild-rift-patch-schedule'), null);
 });
 
 test('usa ETag e devolve conteúdo armazenado em HTTP 304', async () => {
@@ -35,6 +44,23 @@ test('usa ETag e devolve conteúdo armazenado em HTTP 304', async () => {
   assert.equal(requestHeaders['if-none-match'], '"old"');
   assert.equal(requestHeaders['if-modified-since'], 'Wed, 28 Oct 2026 09:00:00 GMT');
   assert.equal(result.etag, '"next"');
+});
+
+test('segue somente redirecionamento canônico dentro da lista estrita de fontes Riot', async () => {
+  let calls = 0;
+  const client = new RiotHttpClient({
+    fetchImpl: async (url) => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response('', { status: 301, headers: { location: `${url}/` } });
+      }
+      return htmlResponse('<html>calendar</html>');
+    },
+    maxAttempts: 1,
+  });
+  const result = await client.getHtml(RIOT_RELEASE_SCHEDULE_URL);
+  assert.equal(calls, 2);
+  assert.equal(result.url, RIOT_RELEASE_SCHEDULE_URL);
 });
 
 test('retry-after 429 e erro 5xx usam tentativas limitadas e backoff injetável', async () => {

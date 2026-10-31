@@ -1,3 +1,5 @@
+import { VERIFIED_MAJOR_RELEASE_HISTORY } from './release-calendar.js';
+
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
@@ -52,29 +54,26 @@ function dayIntervals(rows) {
   return values.filter((value) => value > 0 && value <= 365);
 }
 
-function compareVersions(left, right) {
-  const leftMatch = /^(\d+)\.(\d+)([a-z]?)$/u.exec(left);
-  const rightMatch = /^(\d+)\.(\d+)([a-z]?)$/u.exec(right);
-  if (!leftMatch || !rightMatch) return left.localeCompare(right);
-  return Number(leftMatch[1]) - Number(rightMatch[1])
-    || Number(leftMatch[2]) - Number(rightMatch[2])
-    || leftMatch[3].localeCompare(rightMatch[3]);
+function normalizeMajorReleaseHistory(schedule) {
+  const entries = Array.isArray(schedule) && schedule.length ? schedule : VERIFIED_MAJOR_RELEASE_HISTORY;
+  return entries
+    .map((entry) => ({
+      version: String(entry?.version ?? ''),
+      releaseAt: entry?.releaseAt ? new Date(entry.releaseAt) : null,
+    }))
+    .filter((entry) => /^\d+\.\d+$/u.test(entry.version) && entry.releaseAt && Number.isFinite(entry.releaseAt.getTime()))
+    .sort((left, right) => left.releaseAt - right.releaseAt);
 }
 
-export function deriveRiotMonitorWindows(articles = [], settings, now = new Date()) {
+export function deriveRiotMonitorWindows(articles = [], settings, now = new Date(), officialReleaseSchedule) {
   const history = historyFromArticles(articles);
-  const patchRoots = history.filter((item) => /^(\d+)\.(\d+)$/u.test(item.version));
-  const latestRoot = patchRoots.at(-1);
-  const latestMinorRows = latestRoot
-    ? history
-      .filter((item) => item.version.startsWith(`${latestRoot.version}`) && /[a-z]$/u.test(item.version))
-      .sort((left, right) => compareVersions(left.version, right.version))
-    : [];
-  const recentMinorRows = latestMinorRows.length >= 2
-    ? latestMinorRows.slice(-5)
-    : history.filter((item) => /[a-z]$/u.test(item.version)).slice(-5);
+  const recentMinorRows = history.filter((item) => /[a-z]$/u.test(item.version)).slice(-6);
   const minorCadenceDays = median(dayIntervals(recentMinorRows));
-  const majorCadenceDays = median(dayIntervals(patchRoots.slice(-5)));
+  const releaseHistory = normalizeMajorReleaseHistory(officialReleaseSchedule);
+  const majorCadenceDays = median(dayIntervals(releaseHistory.slice(-5).map(({ version, releaseAt }) => ({
+    version,
+    publishedAt: releaseAt,
+  }))));
   const latestMinor = recentMinorRows.at(-1);
   const minorDurationHours = settings?.scheduler?.minorWindow?.durationHours ?? 36;
   const majorDurationHours = settings?.scheduler?.majorWindow?.durationHours ?? 72;
@@ -82,10 +81,12 @@ export function deriveRiotMonitorWindows(articles = [], settings, now = new Date
   const minorExpectedAt = latestMinor && minorCadenceDays
     ? new Date(latestMinor.publishedAt.getTime() + minorCadenceDays * DAY_MS)
     : null;
-  const latestMajor = patchRoots.at(-1);
-  const majorExpectedAt = latestMajor && majorCadenceDays
-    ? new Date(latestMajor.publishedAt.getTime() + majorCadenceDays * DAY_MS)
-    : null;
+  const latestMajorRelease = releaseHistory.at(-1);
+  const nextOfficialRelease = releaseHistory.find((item) => item.releaseAt > now);
+  const majorExpectedAt = nextOfficialRelease?.releaseAt
+    ?? (latestMajorRelease && majorCadenceDays
+      ? new Date(latestMajorRelease.releaseAt.getTime() + majorCadenceDays * DAY_MS)
+      : null);
 
   return {
     minor: minorExpectedAt
@@ -95,6 +96,8 @@ export function deriveRiotMonitorWindows(articles = [], settings, now = new Date
         endsAt: new Date(minorExpectedAt.getTime() + (minorDurationHours * HOUR_MS) / 2),
         cadenceDays: minorCadenceDays,
         basedOnVersion: latestMinor.version,
+        dateKind: 'notes_publication',
+        source: 'history',
       }
       : null,
     major: majorExpectedAt
@@ -103,7 +106,9 @@ export function deriveRiotMonitorWindows(articles = [], settings, now = new Date
         startsAt: new Date(majorExpectedAt.getTime() - (majorDurationHours * HOUR_MS) / 2),
         endsAt: new Date(majorExpectedAt.getTime() + (majorDurationHours * HOUR_MS) / 2),
         cadenceDays: majorCadenceDays,
-        basedOnVersion: latestMajor.version,
+        basedOnVersion: nextOfficialRelease?.version ?? latestMajorRelease?.version ?? null,
+        dateKind: 'version_release',
+        source: nextOfficialRelease ? 'official_schedule' : 'history',
       }
       : null,
     history,

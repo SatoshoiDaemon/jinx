@@ -1,8 +1,10 @@
 const RIOT_HOST = 'wildrift.leagueoflegends.com';
+const RIOT_SUPPORT_HOST = 'support.riotgames.com';
 const MAX_REDIRECTS = 3;
 const MAX_RETRY_AFTER_MS = 120_000;
 
 export const RIOT_BASE_URL = `https://${RIOT_HOST}`;
+export const RIOT_RELEASE_SCHEDULE_URL = `https://${RIOT_SUPPORT_HOST}/en-us/wild-rift/events/wild-rift-patch-schedule`;
 export const RIOT_LISTING_URLS = Object.freeze({
   'pt-br': `${RIOT_BASE_URL}/pt-br/news/game-updates/`,
   'en-us': `${RIOT_BASE_URL}/en-us/news/game-updates/`,
@@ -76,6 +78,30 @@ export function normalizeRiotArticleUrl(value, language) {
   url.hash = '';
   url.search = '';
   if (!url.pathname.endsWith('/')) url.pathname += '/';
+  return url.toString();
+}
+
+export function normalizeRiotSourceUrl(value, language) {
+  const articleUrl = normalizeRiotArticleUrl(value, language);
+  if (articleUrl) return articleUrl;
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (
+    url.protocol !== 'https:'
+    || url.hostname !== RIOT_SUPPORT_HOST
+    || url.username
+    || url.password
+    || url.port
+    || !/^\/en-us\/wild-rift\/events\/wild-rift-patch-schedule\/?$/u.test(url.pathname)
+  ) return null;
+  url.pathname = '/en-us/wild-rift/events/wild-rift-patch-schedule';
+  url.search = '';
+  url.hash = '';
   return url.toString();
 }
 
@@ -166,7 +192,7 @@ export class RiotHttpClient {
   }
 
   async getHtml(value, { cache = null, language } = {}) {
-    const normalizedUrl = normalizeRiotArticleUrl(value, language);
+    const normalizedUrl = normalizeRiotSourceUrl(value, language);
     if (!normalizedUrl) {
       throw new RiotHttpError('URL oficial rejeitada pela validação.', { code: 'RIOT_URL_REJECTED' });
     }
@@ -175,7 +201,7 @@ export class RiotHttpClient {
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
       try {
         const result = await this.#requestWithRedirects(normalizedUrl, cache);
-        this.logger({ event: 'riot_http_response', status: result.status, host: RIOT_HOST, attempt });
+        this.logger({ event: 'riot_http_response', status: result.status, host: new URL(result.url).hostname, attempt });
         return result;
       } catch (error) {
         lastError = error;
@@ -200,7 +226,7 @@ export class RiotHttpClient {
   async #requestWithRedirects(initialUrl, cache) {
     let url = initialUrl;
     for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
-      const normalized = normalizeRiotArticleUrl(url);
+      const normalized = normalizeRiotSourceUrl(url);
       if (!normalized) throw new RiotHttpError('Redirecionamento para URL não autorizada.', { code: 'RIOT_REDIRECT_REJECTED' });
       const host = new URL(normalized).hostname;
       const semaphore = domainSemaphore(host, {
@@ -231,7 +257,7 @@ export class RiotHttpClient {
           }
           const location = response.headers.get('location');
           const redirected = location ? new URL(location, normalized).toString() : null;
-          if (!redirected || !normalizeRiotArticleUrl(redirected)) {
+          if (!redirected || !normalizeRiotSourceUrl(redirected)) {
             throw new RiotHttpError('Redirecionamento para URL não autorizada.', { code: 'RIOT_REDIRECT_REJECTED' });
           }
           url = redirected;
