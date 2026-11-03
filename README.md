@@ -190,7 +190,7 @@ O painel de agendamento mostra a última e a próxima consulta do calendário, i
 
 As configurações ativas ficam no documento global `_id: "jinx:config"`, na coleção `bot_config`, agrupadas por módulo. As boas-vindas ficam em `modules.welcome`; o Jinx não cria configurações por guilda. O XP dos membros é armazenado por ID de usuário, sem `guildId` no documento.
 
-O módulo guarda `initialRoles: { enabled, roleIds }`, `directMessage: { enabled, content }` e `publicMessage: { enabled, channelId, content }`. Os três recursos começam desativados; a duração de 5 segundos da mensagem pública é fixa e não é uma opção persistida.
+O módulo guarda `initialRoles: { enabled, roleIds }`, `directMessage: { enabled, content }` e `publicMessage: { enabled, channelId, additionalChannelIds, content }`. A mensagem pública pode ser enviada ao canal principal e a canais adicionais; o canal `1566960854245576784` está incluído como destino adicional. Os três recursos começam desativados; a duração de 5 segundos da mensagem pública é fixa e não é uma opção persistida.
 
 Na primeira inicialização após a versão single-guild, uma adaptação idempotente copia as configurações da guilda de `GUILD_ID` para `jinx:config`, converte os registros de XP dessa guilda preservando XP e timestamps e remove o índice composto antigo. Os documentos legados só são removidos após a cópia correspondente. Tickets usam `bot_config.modules.tickets`, `ticket_panels`, `tickets`, `ticket_requests`, `ticket_events`, `ticket_counters` e `ticket_member_limits`; nenhum desses documentos inclui `guildId`. A conexão MongoDB continua usando TLS mútuo.
 

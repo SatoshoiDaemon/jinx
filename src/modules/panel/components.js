@@ -72,14 +72,19 @@ function configuredRolesText(settings, guild) {
 }
 
 function configuredChannelText(settings, guild) {
-  const channelId = settings.publicMessage.channelId;
-  if (!channelId) {
+  const channelIds = [...new Set([
+    settings.publicMessage.channelId,
+    ...(settings.publicMessage.additionalChannelIds ?? []),
+  ].filter((channelId) => typeof channelId === 'string' && channelId.length > 0))];
+  if (channelIds.length === 0) {
     return 'Nenhum canal selecionado.';
   }
-  const channel = guild?.channels.cache.get(channelId);
-  return channel
-    ? `#${channel.name} — \`${channel.id}\``
-    : `Canal indisponível — \`${channelId}\``;
+  return channelIds.map((channelId) => {
+    const channel = guild?.channels.cache.get(channelId);
+    return channel
+      ? `• #${channel.name} — \`${channel.id}\``
+      : `• Canal indisponível — \`${channelId}\``;
+  }).join('\n');
 }
 
 function renderWelcomeContent(settings, guild, section) {
@@ -112,7 +117,7 @@ function renderWelcomeContent(settings, guild, section) {
       '## Boas-vindas — mensagem pública',
       '',
       `**Estado:** ${enabledText(settings.publicMessage.enabled)}`,
-      `**Canal:** ${configuredChannelText(settings, guild)}`,
+      `**Canais:**\n${configuredChannelText(settings, guild)}`,
       '**Mensagem configurada:**',
       settings.publicMessage.content || DEFAULT_WELCOME_SETTINGS.publicMessage.content,
       '',

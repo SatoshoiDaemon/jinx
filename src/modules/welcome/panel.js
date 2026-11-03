@@ -87,7 +87,7 @@ async function sendDmPreview(interaction, context) {
 }
 
 async function sendPublicPreview(interaction, context) {
-  await replyV2(interaction, 'Enviando o teste para o canal configurado…', { ephemeral: true });
+  await replyV2(interaction, 'Enviando o teste para os canais configurados…', { ephemeral: true });
   try {
     const settings = await getWelcomeSettings(context.database);
     const member = await interaction.guild.members.fetch(interaction.user.id);

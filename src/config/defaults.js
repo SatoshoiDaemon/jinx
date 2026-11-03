@@ -21,6 +21,7 @@ export const DEFAULT_WELCOME_SETTINGS = Object.freeze({
   publicMessage: Object.freeze({
     enabled: false,
     channelId: null,
+    additionalChannelIds: Object.freeze(['1566960854245576784']),
     content: '{user.mention} entrou no servidor. Boas-vindas!',
   }),
 });

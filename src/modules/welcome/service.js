@@ -13,6 +13,12 @@ function cleanRoleIds(roleIds) {
     : [];
 }
 
+function cleanChannelIds(channelIds) {
+  return Array.isArray(channelIds)
+    ? [...new Set(channelIds.filter((channelId) => typeof channelId === 'string' && channelId.length > 0))].slice(0, 25)
+    : [];
+}
+
 export async function getWelcomeSettings(database) {
   const stored = await getModuleConfig(database, 'welcome', DEFAULT_WELCOME_SETTINGS);
   return {
@@ -37,6 +43,9 @@ export async function getWelcomeSettings(database) {
       channelId: typeof stored.publicMessage?.channelId === 'string'
         ? stored.publicMessage.channelId
         : null,
+      additionalChannelIds: cleanChannelIds(
+        stored.publicMessage?.additionalChannelIds ?? DEFAULT_WELCOME_SETTINGS.publicMessage.additionalChannelIds,
+      ),
       content: typeof stored.publicMessage?.content === 'string'
         ? stored.publicMessage.content
         : DEFAULT_WELCOME_SETTINGS.publicMessage.content,
@@ -105,11 +114,39 @@ async function findPublicChannel(guild, channelId) {
 }
 
 export async function sendConfiguredPublicWelcome(member, settings) {
-  const channel = await findPublicChannel(member.guild, settings.publicMessage.channelId);
-  if (!channel) {
+  const channelIds = cleanChannelIds([
+    settings.publicMessage.channelId,
+    ...settings.publicMessage.additionalChannelIds,
+  ]);
+  if (channelIds.length === 0) {
     throw new Error('WELCOME_CHANNEL_UNAVAILABLE');
   }
-  return sendTemporaryPublicWelcome(channel, member, settings);
+
+  const destinations = await Promise.all(channelIds.map(async (channelId) => ({
+    channelId,
+    channel: await findPublicChannel(member.guild, channelId),
+  })));
+  const channels = destinations.filter(({ channel }) => channel);
+  if (channels.length === 0) {
+    throw new Error('WELCOME_CHANNEL_UNAVAILABLE');
+  }
+
+  const results = await Promise.allSettled(
+    channels.map(({ channel }) => sendTemporaryPublicWelcome(channel, member, settings)),
+  );
+  const messages = [];
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      messages.push(result.value);
+      return;
+    }
+    console.warn(`[Boas-vindas] Não foi possível enviar mensagem pública no canal ${channels[index].channelId} (${result.reason?.name ?? 'Erro'}).`);
+  });
+
+  if (messages.length === 0) {
+    throw new Error('WELCOME_SEND_FAILED');
+  }
+  return messages;
 }
 
 async function addInitialRoles(member, roleIds) {
